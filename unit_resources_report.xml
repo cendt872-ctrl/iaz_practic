@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<IAZ_Report date="2026-11-07" classification="Службова інформація">
+    <Units>
+        <Unit>
+            <Name>1-й механізований батальйон</Name>
+            <Quantity>420</Quantity>
+            <Status>Боєздатний</Status>
+        </Unit>
+        <Unit>
+            <Name>Дивізіон ППО</Name>
+            <Quantity>145</Quantity>
+            <Status>Боєздатний (на чергуванні)</Status>
+        </Unit>
+        <Unit>
+            <Name>Ремонтно-відновлювальний батальйон</Name>
+            <Quantity>210</Quantity>
+            <Status>Виконує завдання</Status>
+        </Unit>
+    </Units>
+    <Resources>
+        <Resource>
+            <EquipmentName>Бронетехніка (БМП/БТР)</EquipmentName>
+            <TotalQuantity>32</TotalQuantity>
+            <AvailableQuantity>28</AvailableQuantity>
+            <AvailabilityRate>87.5%</AvailabilityRate>
+        </Resource>
+        <Resource>
+            <EquipmentName>Вантажні автомобілі логістики</EquipmentName>
+            <TotalQuantity>45</TotalQuantity>
+            <AvailableQuantity>41</AvailableQuantity>
+            <AvailabilityRate>91.1%</AvailabilityRate>
+        </Resource>
+        <Resource>
+            <EquipmentName>Комплекси БпЛА розвідувальні</EquipmentName>
+            <TotalQuantity>18</TotalQuantity>
+            <AvailableQuantity>18</AvailableQuantity>
+            <AvailabilityRate>100%</AvailabilityRate>
+        </Resource>
+        <Resource>
+            <EquipmentName>Термінали супутникового зв'язку</EquipmentName>
+            <TotalQuantity>25</TotalQuantity>
+            <AvailableQuantity>24</AvailableQuantity>
+            <AvailabilityRate>96.0%</AvailabilityRate>
+        </Resource>
+    </Resources>
+</IAZ_Report>
