@@ -1,0 +1,27 @@
+# Віртуальне середовище Python
+.venv/
+venv/
+env/
+
+# Службові файли та кеш Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Локальні ваги нейромережевої моделі та навчений класифікатор
+models/*
+!models/.gitkeep
+
+# Кеш Hugging Face та Torch
+.cache/
+huggingface_cache/
+
+# Службові файли Streamlit
+.streamlit/
+
+# Системні файли ОС та редакторів коду
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
