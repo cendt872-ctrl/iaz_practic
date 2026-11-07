@@ -1,0 +1,13 @@
+deployment,gpu,location,integration,vram_gb,compliance_note
+hospital-edge-T4,NVIDIA T4,on-prem hospital,DICOM from PACS push,16,air-gapped optional
+hospital-edge-L4,NVIDIA L4,on-prem hospital,DICOM from PACS push,24,air-gapped optional
+hospital-edge-A6000,NVIDIA A6000,on-prem hospital,DICOM from PACS push,48,research room
+radiology-room-4090,NVIDIA RTX 4090,workstation,worklist polling,24,single reading room
+datacenter-A100,NVIDIA A100 SXM,hospital datacenter,HL7/FHIR trigger,80,multi-site hub
+datacenter-H100,NVIDIA H100 SXM,hospital datacenter,HL7/FHIR trigger,80,multi-site hub
+cloud-aws-t4,AWS g4dn.xlarge,public cloud (BAA),S3 DICOM store,16,HIPAA BAA required
+cloud-aws-a10g,AWS g5.2xlarge,public cloud (BAA),S3 DICOM store,24,HIPAA BAA required
+cloud-gcp-l4,GCP g2-standard-8,public cloud (BAA),Cloud Healthcare API,24,HIPAA BAA required
+cloud-azure-ncas,Azure NC A100 v4,public cloud (BAA),DICOM service,80,HIPAA BAA required
+hybrid-burst,NVIDIA L40S,hybrid edge+cloud,queue overflow,48,de-identified burst only
+research-lab,NVIDIA RTX 3090,research lab,batch retrospective,24,IRB-approved data
