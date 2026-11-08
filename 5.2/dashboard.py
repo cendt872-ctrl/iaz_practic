@@ -1,0 +1,458 @@
+import os
+import webbrowser
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+html_path = os.path.join(BASE_DIR, "index.html")
+
+html_content = """<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оперативний Дашборд ІАЗ ОВУ — Розширена версія</title>
+    <style>
+        :root {
+            --primary: #003366;
+            --secondary: #0055a5;
+            --bg: #f0f4f8;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --muted: #64748b;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0 0 60px 0;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #fff;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 1.5rem; }
+        .header-controls { display: flex; gap: 10px; align-items: center; }
+        .btn {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn:hover, .btn.active { background-color: #fff; color: var(--primary); }
+        
+        nav {
+            background-color: var(--secondary);
+            padding: 10px 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            gap: 25px;
+            flex-wrap: wrap;
+        }
+        nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+        nav a:hover { text-decoration: underline; }
+
+        main { max-width: 1280px; margin: 25px auto; padding: 0 20px; }
+
+        /* 1. Верхні KPI картки */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            border-top: 4px solid var(--secondary);
+        }
+        .card h3 { margin: 0 0 8px 0; font-size: 0.95rem; color: var(--muted); text-transform: uppercase; }
+        .metric { font-size: 2rem; font-weight: 700; color: var(--primary); margin: 0; }
+        .sub-metric { font-size: 0.85rem; color: var(--success); margin-top: 6px; }
+
+        /* 2. Сітка аналітичних панелей */
+        .panels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .panel {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 22px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .panel h2 {
+            margin: 0 0 16px 0;
+            font-size: 1.15rem;
+            color: var(--primary);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        /* CSS Стовпчиковий графік */
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 190px;
+            padding: 20px 10px 0 10px;
+            border-bottom: 2px solid var(--border);
+            gap: 12px;
+        }
+        .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .bar {
+            width: 100%;
+            max-width: 48px;
+            background: linear-gradient(180deg, var(--secondary), var(--primary));
+            border-radius: 6px 6px 0 0;
+            transition: height 0.4s ease;
+            position: relative;
+        }
+        .bar-val { font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+        .bar-label { margin-top: 8px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+
+        /* Шкали прогресу (Готовність підрозділів) */
+        .progress-item { margin-bottom: 14px; }
+        .progress-header { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 5px; }
+        .progress-track { width: 100%; height: 12px; background: var(--border); border-radius: 6px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--success); border-radius: 6px; transition: width 0.4s ease; }
+
+        /* Теплова матриця секторів */
+        .heatmap {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .sector-cell {
+            padding: 16px 12px;
+            border-radius: 6px;
+            text-align: center;
+            color: #fff;
+            font-weight: 700;
+        }
+        .sector-cell span { display: block; font-size: 0.8rem; font-weight: 400; opacity: 0.9; margin-top: 4px; }
+        .lvl-low { background-color: var(--success); }
+        .lvl-med { background-color: var(--warning); }
+        .lvl-high { background-color: var(--danger); }
+
+        /* 3. Таблиця (Журнал аналітичних записів) */
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .input-control {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background-color: #f8fafc; color: var(--primary); font-weight: 700; }
+        tr:hover { background-color: #f1f5f9; }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        footer {
+            background-color: var(--primary);
+            color: #fff;
+            text-align: center;
+            padding: 14px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        @media print {
+            header .header-controls, nav, .table-controls, footer { display: none; }
+            body { background: #fff; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Інформаційно-аналітичний дашборд ІАЗ ОВУ</h1>
+        <div class="header-controls">
+            <span>Сценарій:</span>
+            <button class="btn active" onclick="setScenario('base', this)">Штатний режим</button>
+            <button class="btn" onclick="setScenario('alert', this)">Підвищена активність</button>
+            <button class="btn" onclick="window.print()">Друк / PDF</button>
+        </div>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#kpi">01. Зведені KPI</a></li>
+            <li><a href="#charts">02. Графіки та Сектори</a></li>
+            <li><a href="#journal">03. Журнал донесень</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <!-- Секція 1: KPI Картки (включаючи базові з методички + оперативні) -->
+        <section id="kpi" class="kpi-grid">
+            <div class="card">
+                <h3>Аналітичні групи</h3>
+                <p class="metric" id="kpi-groups">4</p>
+                <div class="sub-metric">Чергування 24/7</div>
+            </div>
+            <div class="card">
+                <h3>Офіцерські ранги</h3>
+                <p class="metric" id="kpi-ranks">6</p>
+                <div class="sub-metric">Категорії допуску</div>
+            </div>
+            <div class="card">
+                <h3>Активні слухачі</h3>
+                <p class="metric" id="kpi-students">18</p>
+                <div class="sub-metric">Залучені до аналізу</div>
+            </div>
+            <div class="card">
+                <h3>Виявлено об'єктів</h3>
+                <p class="metric" id="kpi-objects">62</p>
+                <div class="sub-metric" id="kpi-objects-sub">За останні 24 години</div>
+            </div>
+            <div class="card">
+                <h3>Рівень готовності ІАЗ</h3>
+                <p class="metric" id="kpi-readiness">94%</p>
+                <div class="sub-metric">Система стабільна</div>
+            </div>
+        </section>
+
+        <!-- Секція 2: Візуалізація (CSS Графіки + Теплова карта) -->
+        <section id="charts" class="panels-grid">
+            <!-- Панель 1: Стовпчиковий графік (дані з теми 5.1) -->
+            <div class="panel">
+                <h2>Чисельність виявлених об'єктів за ділянками (CSS Chart)</h2>
+                <div class="bar-chart" id="barChart"></div>
+            </div>
+
+            <!-- Панель 2: Теплова карта секторів -->
+            <div class="panel">
+                <h2>Теплова матриця напруженості секторів</h2>
+                <div class="heatmap" id="heatmapGrid"></div>
+            </div>
+
+            <!-- Панель 3: Ресурсне забезпечення та канали зв'язку -->
+            <div class="panel">
+                <h2>Завантаженість та стійкість підсистем</h2>
+                <div class="progress-item">
+                    <div class="progress-header"><span>Супутниковий моніторинг</span><span id="p1-val">88%</span></div>
+                    <div class="progress-track"><div class="progress-fill" id="p1-bar" style="width: 88%;"></div></div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-header"><span>Обробка розвідданих БПЛА</span><span id="p2-val">92%</span></div>
+                    <div class="progress-track"><div class="progress-fill" id="p2-bar" style="width: 92%;"></div></div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-header"><span>Захищені канали передачі</span><span id="p3-val">98%</span></div>
+                    <div class="progress-track"><div class="progress-fill" id="p3-bar" style="width: 98%;"></div></div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-header"><span>Резерв обчислювальних вузлів</span><span id="p4-val">75%</span></div>
+                    <div class="progress-track"><div class="progress-fill" id="p4-bar" style="width: 75%; background:#0055a5;"></div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Секція 3: Інтерактивний журнал аналітичних записів -->
+        <section id="journal" class="panel">
+            <h2>Журнал оперативних донесень та виявлених об'єктів</h2>
+            <div class="table-controls">
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <input type="text" id="searchInput" class="input-control" placeholder="Пошук по ділянці або типу..." oninput="renderTable()">
+                    <select id="statusFilter" class="input-control" onchange="renderTable()">
+                        <option value="ALL">Усі рівні пріоритету</option>
+                        <option value="Високий">Високий</option>
+                        <option value="Середній">Середній</option>
+                        <option value="Низький">Низький</option>
+                    </select>
+                </div>
+                <button class="btn" style="background:var(--primary);" onclick="exportCSV()">Експорт у CSV</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Час</th>
+                        <th>Ділянка</th>
+                        <th>Тип об'єкта / Подія</th>
+                        <th>Кількість</th>
+                        <th>Група ІАЗ</th>
+                        <th>Пріоритет</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <span>&copy; 2026 ІАЗ ОВУ. Лабораторія візуалізації даних (HTML5 + CSS3 + JS). Усі дані є навчальними синтетичними прикладами.</span>
+    </footer>
+
+    <script>
+        const scenarios = {
+            base: {
+                groups: 4, ranks: 6, students: 18, objects: 62, readiness: '94%',
+                bars: [
+                    { label: 'Ділянка A', val: 12 },
+                    { label: 'Ділянка B', val: 19 },
+                    { label: 'Ділянка C', val: 7 },
+                    { label: 'Ділянка D', val: 15 },
+                    { label: 'Ділянка E', val: 9 }
+                ],
+                sectors: [
+                    { name: 'Сектор A-1', status: 'Стабільно', cls: 'lvl-low' },
+                    { name: 'Сектор B-1', status: 'Активність', cls: 'lvl-high' },
+                    { name: 'Сектор C-1', status: 'Стабільно', cls: 'lvl-low' },
+                    { name: 'Сектор D-2', status: 'Увага', cls: 'lvl-med' },
+                    { name: 'Сектор E-2', status: 'Стабільно', cls: 'lvl-low' },
+                    { name: 'Сектор F-3', status: 'Увага', cls: 'lvl-med' }
+                ]
+            },
+            alert: {
+                groups: 6, ranks: 8, students: 24, objects: 98, readiness: '99%',
+                bars: [
+                    { label: 'Ділянка A', val: 21 },
+                    { label: 'Ділянка B', val: 32 },
+                    { label: 'Ділянка C', val: 12 },
+                    { label: 'Ділянка D', val: 24 },
+                    { label: 'Ділянка E', val: 9 }
+                ],
+                sectors: [
+                    { name: 'Сектор A-1', status: 'Увага', cls: 'lvl-med' },
+                    { name: 'Сектор B-1', status: 'Високий ризик', cls: 'lvl-high' },
+                    { name: 'Сектор C-1', status: 'Стабільно', cls: 'lvl-low' },
+                    { name: 'Сектор D-2', status: 'Високий ризик', cls: 'lvl-high' },
+                    { name: 'Сектор E-2', status: 'Увага', cls: 'lvl-med' },
+                    { name: 'Сектор F-3', status: 'Увага', cls: 'lvl-med' }
+                ]
+            }
+        };
+
+        const records = [
+            { time: '08:15', area: 'Ділянка B', type: 'Колона бронетехніки (ББМ)', count: 12, group: 'Група №1', priority: 'Високий' },
+            { time: '09:30', area: 'Ділянка A', type: 'Вантажний автотранспорт', count: 8, group: 'Група №2', priority: 'Середній' },
+            { time: '10:45', area: 'Ділянка D', type: 'Активність БПЛА розвідки', count: 9, group: 'Група №1', priority: 'Високий' },
+            { time: '12:10', area: 'Ділянка C', type: 'Інженерні роботи', count: 7, group: 'Група №3', priority: 'Низький' },
+            { time: '14:20', area: 'Ділянка B', type: 'Артилерійська позиція', count: 7, group: 'Група №1', priority: 'Високий' },
+            { time: '15:50', area: 'Ділянка E', type: 'Пункт матеріального забезпечення', count: 9, group: 'Група №4', priority: 'Середній' },
+            { time: '17:05', area: 'Ділянка D', type: 'Переміщення особового складу', count: 6, group: 'Група №2', priority: 'Середній' },
+            { time: '18:30', area: 'Ділянка A', type: 'Ретранслятор зв’язку', count: 4, group: 'Група №3', priority: 'Низький' }
+        ];
+
+        function setScenario(key, btn) {
+            document.querySelectorAll('header .btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+
+            const data = scenarios[key];
+            document.getElementById('kpi-groups').textContent = data.groups;
+            document.getElementById('kpi-ranks').textContent = data.ranks;
+            document.getElementById('kpi-students').textContent = data.students;
+            document.getElementById('kpi-objects').textContent = data.objects;
+            document.getElementById('kpi-readiness').textContent = data.readiness;
+
+            // Рендер стовпчиків
+            const maxVal = Math.max(...data.bars.map(b => b.val));
+            const barContainer = document.getElementById('barChart');
+            barContainer.innerHTML = data.bars.map(b => {
+                const h = Math.round((b.val / maxVal) * 130);
+                return `<div class="bar-col">
+                    <div class="bar-val">${b.val}</div>
+                    <div class="bar" style="height: ${h}px;"></div>
+                    <div class="bar-label">${b.label}</div>
+                </div>`;
+            }).join('');
+
+            // Рендер теплової карти
+            const heatContainer = document.getElementById('heatmapGrid');
+            heatContainer.innerHTML = data.sectors.map(s => `
+                <div class="sector-cell ${s.cls}">
+                    ${s.name}
+                    <span>${s.status}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderTable() {
+            const q = document.getElementById('searchInput').value.toLowerCase();
+            const status = document.getElementById('statusFilter').value;
+            const tbody = document.getElementById('tableBody');
+
+            const filtered = records.filter(r => {
+                const matchText = r.area.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.group.toLowerCase().includes(q);
+                const matchStatus = (status === 'ALL') || (r.priority === status);
+                return matchText && matchStatus;
+            });
+
+            tbody.innerHTML = filtered.map(r => {
+                let badgeColor = '#16a34a';
+                if (r.priority === 'Високий') badgeColor = '#dc2626';
+                else if (r.priority === 'Середній') badgeColor = '#d97706';
+
+                return `<tr>
+                    <td><strong>${r.time}</strong></td>
+                    <td>${r.area}</td>
+                    <td>${r.type}</td>
+                    <td><strong>${r.count}</strong></td>
+                    <td>${r.group}</td>
+                    <td><span class="badge" style="background:${badgeColor}">${r.priority}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function exportCSV() {
+            let csv = "Час,Ділянка,Тип об'єкта,Кількість,Група,Пріоритет\\n";
+            records.forEach(r => {
+                csv += `${r.time},"${r.area}","${r.type}",${r.count},"${r.group}",${r.priority}\\n`;
+            });
+            const blob = new Blob(["\\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'iaz_ovu_report.csv';
+            a.click();
+        }
+
+        // Ініціалізація при завантаженні
+        setScenario('base');
+        renderTable();
+    </script>
+</body>
+</html>"""
+
+with open(html_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"✔ Розширений дашборд успішно створено: {html_path}")
+webbrowser.open(f"file:///{html_path}")
