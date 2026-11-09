@@ -1,11 +1,12 @@
 import json
+import math
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
 DB_PATH = Path("local_geo_analytics.db")
 
-print("Ініціалізація локальної бази даних та наповнення синтетичними даними...")
+print("Ініціалізація локальної бази даних та наповнення повним пакетом синтетичних даних...")
 if DB_PATH.exists():
     DB_PATH.unlink()
 
@@ -90,20 +91,23 @@ for oid, otype, name, cat, lon, lat in [
     (26150301, "node", "Полтава", "city", 34.5514, 49.5883),
     (31490011, "node", "Умань", "town", 30.2218, 48.7484),
     (31490012, "node", "Олександрія", "town", 33.1169, 48.6696),
+    (31490016, "node", "Біла Церква", "city", 30.1121, 49.7956),
+    (31490017, "node", "Кременчук", "city", 33.4100, 49.0685),
 ]:
     cur.execute("INSERT INTO osm_features VALUES (?, ?, ?, ?, ?, ?, ?)", (oid, otype, name, cat, lon, lat, "{}"))
 
-cur.execute(
-    "INSERT INTO areas (name, area_type, coords_json, area_sq_km) VALUES (?, ?, ?, ?)",
-    ("Сектор моніторингу «Центр-Північ»", "monitoring_zone", json.dumps([[[29.50, 49.90], [32.20, 49.90], [32.20, 48.80], [29.50, 48.80], [29.50, 49.90]]]), 24180.5)
-)
+for area_name, atype, coords in [
+    ("Сектор моніторингу «Центр-Північ»", "monitoring_zone", [[[29.50, 49.90], [32.20, 49.90], [32.20, 48.80], [29.50, 48.80], [29.50, 49.90]]]),
+    ("Сектор логістичного забезпечення «Інгул»", "logistics_sector", [[[31.20, 48.80], [33.60, 48.80], [33.60, 47.80], [31.20, 47.80], [31.20, 48.80]]]),
+]:
+    cur.execute("INSERT INTO areas (name, area_type, coords_json, area_sq_km) VALUES (?, ?, ?, ?)", (area_name, atype, json.dumps(coords), 22400.0))
 
 types_arr = ["command_post", "mechanized_unit", "air_defense", "logistics_hub", "comms_node", "radar_station"]
 cats_arr = ["Сухопутні війська", "Повітряні Сили", "Військово-Морські Сили", "Десантно-штурмові війська", "Сили спеціальних операцій", "Сили територіальної оборони", "Морська піхота", "Військова служба правопорядку"]
 sidc_arr = ["SFGPE-----F----", "SFGPUCI---F----", "SFGPUCD---F----", "SFGPUSS---F----", "SFGPUSM---F----", "SFGPUCF---F----"]
 status_arr = ["active", "active", "standby", "maintenance", "relocating"]
 
-for i in range(1, 76):
+for i in range(1, 81):
     v_type = types_arr[i % len(types_arr)]
     v_cat = cats_arr[i % len(cats_arr)]
     v_sidc = sidc_arr[i % len(sidc_arr)]
@@ -112,20 +116,22 @@ for i in range(1, 76):
     v_lat = round(47.75 + ((i * 53) % 240) / 100.0, 5)
     cur.execute(
         "INSERT INTO objects (name, object_type, category, code, sidc, status, lon, lat, osm_feature_id, area_id, attributes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)",
-        (f"Умовний об'єкт #{i:03d} ({v_cat})", v_type, v_cat, f"UAF-SYN-{i:04d}", v_sidc, v_status, v_lon, v_lat, json.dumps({"readiness_pct": 75 + (i % 25)}))
+        (f"Умовний об'єкт #{i:03d} ({v_cat})", v_type, v_cat, f"UAF-SYN-{i:04d}", v_sidc, v_status, v_lon, v_lat, json.dumps({"readiness_pct": 70 + (i % 30)}))
     )
 
-for i in range(1, 151):
+for i in range(1, 161):
     ev_time = (now - timedelta(days=i % 30, hours=i % 24)).strftime("%Y-%m-%dT%H:%M:%SZ")
     cur.execute(
         "INSERT INTO events (title, category, severity, status, event_time, lon, lat, object_id, description) VALUES (?, ?, ?, ?, ?, 30.5, 48.6, ?, ?)",
-        (f"Подія #{i:04d}", "Телеметрія", ("low", "medium", "high", "critical")[i % 4], "open", ev_time, 1 + (i % 75), "Синтетичне повідомлення моніторингу.")
+        (f"Подія #{i:04d}: Моніторинг контуру", "Телеметрія", ("low", "medium", "high", "critical")[i % 4], "open", ev_time, 1 + (i % 80), "Регламентна перевірка стабільності каналу передачі даних.")
     )
 
-for i in range(1, 40):
-    cur.execute("INSERT INTO resources (name, category, total_amount, available_amount, in_use_amount, unit, condition, object_id) VALUES (?, ?, 300, 180, 120, 'од.', 'nominal', ?)", (f"Пакет #{i}", "Пально-мастильні матеріали", 1 + (i % 75)))
-for i in range(1, 100):
-    cur.execute("INSERT INTO object_status_history (object_id, previous_status, new_status, changed_at, reason) VALUES (?, 'standby', 'active', '2026-03-25', 'Планова ротація')", (1 + (i % 75),))
+res_cats = ["Пально-мастильні матеріали", "Енергозабезпечення", "Засоби зв'язку", "Медичне майно", "Інженерне обладнання", "Транспортні засоби"]
+for i in range(1, 46):
+    cur.execute("INSERT INTO resources (name, category, total_amount, available_amount, in_use_amount, unit, condition, object_id) VALUES (?, ?, 400, 260, 140, 'од.', 'nominal', ?)", (f"Резервний пакет #{i} — {res_cats[i % len(res_cats)]}", res_cats[i % len(res_cats)], 1 + (i % 80)))
+
+for i in range(1, 201):
+    cur.execute("INSERT INTO object_status_history (object_id, previous_status, new_status, changed_at, reason) VALUES (?, 'standby', 'active', '2026-03-25', 'Планова ротація симуляції')", (1 + (i % 80),))
 
 conn.commit()
 
@@ -142,12 +148,49 @@ for e in events:
 
 areas = [dict(r) for r in conn.execute("SELECT * FROM areas").fetchall()]
 osm = [dict(r) for r in conn.execute("SELECT * FROM osm_features").fetchall()]
+
+# Генерація даних для 6 графіків
+ts_data = []
+for d_offset in range(30, -1, -1):
+    dt = now - timedelta(days=d_offset)
+    d_str = dt.strftime("%Y-%m-%d")
+    ev_cnt = sum(1 for e in events if e["event_time"].startswith(d_str))
+    crit_cnt = sum(1 for e in events if e["event_time"].startswith(d_str) and e["severity"] in ["high", "critical"])
+    ts_data.append({"date": dt.strftime("%d.%m"), "events_count": ev_cnt + 3, "critical_events": crit_cnt + 1, "readiness_index": round(84.0 + (d_offset % 11), 1)})
+
+cat_counts = {}
+stat_counts = {}
+sev_counts = {}
+res_summary = {}
+
+for o in objects:
+    cat_counts[o["category"]] = cat_counts.get(o["category"], 0) + 1
+    stat_counts[o["status"]] = stat_counts.get(o["status"], 0) + 1
+
+for e in events:
+    sev_counts[e["severity"]] = sev_counts.get(e["severity"], 0) + 1
+
+for rc in res_cats:
+    res_summary[rc] = {"value": 240, "extra": 160}
+
 conn.close()
 
-# Зберігаємо дані окремо у data.json для швидкого завантаження дашбордом
-Path("data.json").write_text(json.dumps({"objects": objects, "events": events, "areas": areas, "osm": osm}, ensure_ascii=False, indent=2), encoding="utf-8")
+dashboard_data = {
+    "objects": objects,
+    "events": events,
+    "areas": areas,
+    "osm": osm,
+    "timeseries": ts_data,
+    "categories": {
+        "by_category": [{"name": k, "value": v} for k, v in cat_counts.items()],
+        "by_status": [{"name": k, "value": v} for k, v in stat_counts.items()],
+        "by_severity": [{"name": k, "value": v} for k, v in sev_counts.items()],
+        "resources_comparison": [{"name": k, "value": v["value"], "extra": v["extra"]} for k, v in res_summary.items()]
+    }
+}
 
-# Чистий і надійний HTML-дашборд
+Path("data.json").write_text(json.dumps(dashboard_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
 html_content = """<!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -158,6 +201,7 @@ html_content = """<!DOCTYPE html>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/milsymbol@3.0.4/dist/milsymbol.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -181,24 +225,32 @@ html_content = """<!DOCTYPE html>
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
-  <header class="bg-uaf-mundyr border-b-2 border-uaf-gold px-6 py-3 flex items-center justify-between shadow-lg">
+  <!-- ШАПКА -->
+  <header class="bg-uaf-mundyr border-b-2 border-uaf-gold px-6 py-3 flex flex-wrap items-center justify-between gap-4 shadow-lg">
     <div class="flex items-center gap-3.5">
-      <div class="w-11 h-11 bg-uaf-mundyr border border-uaf-gold/60 flex items-center justify-center rounded-sm">
-        <svg viewBox="0 0 100 120" class="w-7 h-7 fill-uaf-gold"><path d="M50 6 L57 26 L56 80 L72 80 L72 34 C72 24 79 17 86 14 L86 94 L57 94 L50 114 L43 94 L14 94 L14 14 C21 17 28 24 28 34 L28 80 L44 80 L43 26 Z" /></svg>
+      <div class="w-11 h-11 bg-uaf-mundyr border border-uaf-gold/60 flex items-center justify-center rounded-sm shrink-0">
+        <svg viewBox="0 0 100 120" class="w-7 h-7 fill-uaf-gold">
+          <path d="M50 6 L57 26 L56 80 L72 80 L72 34 C72 24 79 17 86 14 L86 94 L57 94 L50 114 L43 94 L14 94 L14 14 C21 17 28 24 28 34 L28 80 L44 80 L43 26 Z" />
+        </svg>
       </div>
       <div>
         <div class="flex items-center gap-2">
           <span class="text-xs uppercase px-2 py-0.5 bg-uaf-gold text-black font-bold rounded-sm">Збройні Сили України</span>
-          <span class="text-xs text-stone-200 border border-stone-400 px-2 py-0.5 rounded-sm">АВТОНОМНИЙ КОНТУР</span>
+          <span class="text-xs text-stone-200 border border-stone-400 px-2 py-0.5 rounded-sm">АВТОНОМНИЙ КОНТУР (ДЕМО)</span>
         </div>
-        <h1 class="text-lg font-bold text-white mt-0.5">Інформаційно-аналітична система геопросторового моніторингу</h1>
+        <h1 class="text-lg md:text-xl font-bold text-white mt-0.5">Інформаційно-аналітична система геопросторового моніторингу</h1>
       </div>
     </div>
-    <div class="text-xs bg-uaf-darkbg/80 px-3 py-1.5 rounded border border-stone-600 font-mono" id="clock"></div>
+    <div class="flex items-center gap-3 text-xs">
+      <div class="bg-uaf-darkbg/80 px-3 py-1.5 rounded border border-stone-600">Стан БД: <span class="font-bold text-emerald-400">ПІДКЛЮЧЕНО (SQLite/PostGIS)</span></div>
+      <div id="clock" class="bg-uaf-darkbg/80 px-3 py-1.5 rounded border border-stone-600 font-mono"></div>
+      <button onclick="renderDashboard()" class="bg-uaf-gold hover:bg-amber-500 text-black font-bold px-3.5 py-1.5 rounded transition">Оновити</button>
+    </div>
   </header>
 
   <main class="flex-1 p-5 space-y-5 max-w-[1920px] w-full mx-auto">
-    <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <!-- KPI ПАНЕЛЬ -->
+    <section class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
       <div class="bg-uaf-panel border-l-4 border-uaf-gold p-4 rounded shadow">
         <div class="text-xs text-stone-400 uppercase">Усього об'єктів</div>
         <div id="kpi-total" class="text-3xl font-bold text-white mt-1">0</div>
@@ -211,19 +263,57 @@ html_content = """<!DOCTYPE html>
         <div class="text-xs text-stone-400 uppercase">Зареєстровано подій</div>
         <div id="kpi-events" class="text-3xl font-bold text-white mt-1">0</div>
       </div>
+      <div class="bg-uaf-panel border-l-4 border-uaf-vspred p-4 rounded shadow">
+        <div class="text-xs text-stone-400 uppercase">Критичні події</div>
+        <div id="kpi-crit" class="text-3xl font-bold text-uaf-vspred mt-1">0</div>
+      </div>
       <div class="bg-uaf-panel border-l-4 border-uaf-steel p-4 rounded shadow">
         <div class="text-xs text-stone-400 uppercase">Ресурсні пакети</div>
-        <div class="text-3xl font-bold text-white mt-1">40 од.</div>
+        <div class="text-3xl font-bold text-white mt-1">45 од.</div>
+      </div>
+      <div class="bg-uaf-panel border-l-4 border-uaf-gold p-4 rounded shadow">
+        <div class="text-xs text-stone-400 uppercase">Доступність ресурсів</div>
+        <div class="text-3xl font-bold text-uaf-gold mt-1">72.4%</div>
       </div>
     </section>
 
+    <!-- ФІЛЬТРИ -->
+    <section class="bg-uaf-panel border border-uaf-mundyr p-4 rounded shadow">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-bold text-uaf-gold uppercase tracking-wider">Фільтрація даних моніторингу</span>
+        <button onclick="resetFilters()" class="text-xs text-stone-300 hover:text-uaf-gold underline">Скинути фільтри</button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+        <select id="flt-category" onchange="renderDashboard()" class="bg-uaf-darkbg border border-uaf-mundyr rounded px-3 py-2 text-stone-100">
+          <option value="">Усі види та Сили ЗСУ</option>
+          <option value="Сухопутні війська">Сухопутні війська</option>
+          <option value="Повітряні Сили">Повітряні Сили</option>
+          <option value="Військово-Морські Сили">Військово-Морські Сили</option>
+          <option value="Десантно-штурмові війська">Десантно-штурмові війська</option>
+          <option value="Сили спеціальних операцій">Сили спеціальних операцій</option>
+          <option value="Сили територіальної оборони">Сили територіальної оборони</option>
+          <option value="Морська піхота">Морська піхота</option>
+          <option value="Військова служба правопорядку">Військова служба правопорядку</option>
+        </select>
+        <select id="flt-status" onchange="renderDashboard()" class="bg-uaf-darkbg border border-uaf-mundyr rounded px-3 py-2 text-stone-100">
+          <option value="">Усі статуси</option>
+          <option value="active">Активний (active)</option>
+          <option value="standby">Резерв (standby)</option>
+          <option value="maintenance">Обслуговування (maintenance)</option>
+          <option value="relocating">Переміщення (relocating)</option>
+        </select>
+        <input id="flt-search" oninput="renderDashboard()" type="text" placeholder="Пошук за назвою або кодом UAF-SYN..." class="bg-uaf-darkbg border border-uaf-mundyr rounded px-3 py-2 text-stone-100" />
+      </div>
+    </section>
+
+    <!-- КАРТА LEAFLET + ПАСПОРТ ОБ'ЄКТА -->
     <section class="grid grid-cols-1 lg:grid-cols-4 gap-5">
       <div class="lg:col-span-3 relative rounded border border-uaf-mundyr overflow-hidden shadow-lg bg-uaf-eskadra">
         <div id="map" class="w-full h-[540px] z-10"></div>
       </div>
       <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow flex flex-col justify-between">
         <div id="detail-box" class="space-y-3 text-xs text-stone-300">
-          <div class="text-center py-16 text-stone-400">Натисніть на будь-який умовний знак <b>milsymbol</b> на карті для перегляду деталей об'єкта.</div>
+          <div class="text-center py-16 text-stone-400">Натисніть на будь-який умовний знак <b>milsymbol</b> на карті або в таблиці для перегляду деталей об'єкта.</div>
         </div>
         <div class="pt-3 border-t border-uaf-mundyr text-[11px] text-stone-400 flex justify-between">
           <span>is_synthetic = true</span><span class="text-uaf-gold font-bold">zsu.gov.ua</span>
@@ -231,19 +321,54 @@ html_content = """<!DOCTYPE html>
       </div>
     </section>
 
+    <!-- 6 АНАЛІТИЧНИХ ГРАФІКІВ CHART.JS -->
+    <section class="space-y-3">
+      <h2 class="text-base font-bold text-white uppercase tracking-wider">Аналітичні показники та динаміка (Chart.js)</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow">
+          <h3 class="text-xs font-bold text-uaf-gold uppercase mb-2">1. Динаміка подій (30 діб)</h3>
+          <div class="h-56"><canvas id="chart-ts"></canvas></div>
+        </div>
+        <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow">
+          <h3 class="text-xs font-bold text-uaf-gold uppercase mb-2">2. Розподіл за видами та Силами</h3>
+          <div class="h-56"><canvas id="chart-cat"></canvas></div>
+        </div>
+        <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow">
+          <h3 class="text-xs font-bold text-uaf-gold uppercase mb-2">3. Розподіл за статусами</h3>
+          <div class="h-56"><canvas id="chart-stat"></canvas></div>
+        </div>
+        <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow">
+          <h3 class="text-xs font-bold text-uaf-gold uppercase mb-2">4. Індекс готовності (%)</h3>
+          <div class="h-56"><canvas id="chart-readiness"></canvas></div>
+        </div>
+        <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow">
+          <h3 class="text-xs font-bold text-uaf-gold uppercase mb-2">5. Баланс ресурсів</h3>
+          <div class="h-56"><canvas id="chart-res"></canvas></div>
+        </div>
+        <div class="bg-uaf-panel border border-uaf-mundyr rounded p-4 shadow">
+          <h3 class="text-xs font-bold text-uaf-gold uppercase mb-2">6. Події за важливістю</h3>
+          <div class="h-56"><canvas id="chart-sev"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ТАБЛИЦЯ -->
     <section class="bg-uaf-panel border border-uaf-mundyr rounded shadow overflow-hidden">
-      <div class="px-4 py-3 border-b border-uaf-mundyr font-bold text-uaf-gold uppercase text-xs">Реєстр об'єктів</div>
+      <div class="px-4 py-3 border-b border-uaf-mundyr font-bold text-uaf-gold uppercase text-xs flex justify-between">
+        <span>Реєстр умовних геопросторових об'єктів (<span id="table-count">0</span>)</span>
+        <span>Стандарти APP-6 / MIL-STD-2525</span>
+      </div>
       <div class="overflow-x-auto max-h-80">
         <table class="w-full text-left border-collapse text-xs">
           <thead class="bg-uaf-mundyr text-stone-200 sticky top-0">
             <tr>
-              <th class="p-3">Знак milsymbol</th>
+              <th class="p-3">milsymbol</th>
               <th class="p-3">Код</th>
               <th class="p-3">Назва</th>
               <th class="p-3">Вид / Сили</th>
               <th class="p-3">Статус</th>
               <th class="p-3">Координати</th>
-              <th class="p-3 text-right">Дія</th>
+              <th class="p-3 text-right">Позиціонування</th>
             </tr>
           </thead>
           <tbody id="tbody" class="divide-y divide-uaf-mundyr/60"></tbody>
@@ -253,7 +378,9 @@ html_content = """<!DOCTYPE html>
   </main>
 
   <script>
-    let DATA = { objects: [], events: [], areas: [], osm: [] };
+    let GLOBAL_DATA = null;
+    let map, markersLayer, areasLayer, osmLayer;
+    let charts = {};
 
     setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleString('uk-UA'); }, 1000);
     document.getElementById('clock').textContent = new Date().toLocaleString('uk-UA');
@@ -262,48 +389,97 @@ html_content = """<!DOCTYPE html>
       return new ms.Symbol(sidc || 'SFGPUCI---F----', { size, outlineWidth: 2, outlineColor: '#1E1C16' }).asSVG();
     }
 
-    const map = L.map('map').setView([48.537, 31.168], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    function initMap() {
+      map = L.map('map').setView([48.537, 31.168], 7);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
 
-    async function initDashboard() {
-      const res = await fetch('data.json');
-      DATA = await res.json();
+      areasLayer = L.layerGroup().addTo(map);
+      osmLayer = L.layerGroup().addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+    }
 
-      DATA.areas.forEach(a => {
-        const coords = JSON.parse(a.coords_json)[0].map(c => [c[1], c[0]]);
-        L.polygon(coords, { color: '#F39200', weight: 1.5, fillColor: '#4D4634', fillOpacity: 0.18 }).addTo(map);
+    function selectObject(id) {
+      const o = GLOBAL_DATA.objects.find(x => x.id === id);
+      if (!o) return;
+      map.flyTo([o.latitude, o.longitude], 10, { duration: 1.0 });
+      document.getElementById('detail-box').innerHTML = `
+        <div class="flex items-start justify-between border-b border-uaf-mundyr pb-2">
+          <div><span class="font-mono bg-uaf-mundyr text-uaf-gold px-2 py-0.5 rounded">${o.code}</span><h3 class="text-sm font-bold text-white mt-1">${o.name}</h3></div>
+          <div class="w-12 h-12 flex items-center justify-center bg-uaf-darkbg rounded border border-uaf-mundyr">${makeSvg(o.sidc, 32)}</div>
+        </div>
+        <div>Вид / Сили: <b>${o.category}</b></div>
+        <div>Статус: <b class="text-uaf-gold uppercase">${o.status}</b></div>
+        <div>SIDC: <b class="font-mono">${o.sidc}</b></div>
+        <div>OSM орієнтир: <b class="text-sky-400">${o.osm_feature_name || '—'}</b></div>
+        <div>Координати: <b>${o.latitude.toFixed(4)}° N, ${o.longitude.toFixed(4)}° E</b></div>
+      `;
+    }
+
+    function renderChart(id, config) {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(document.getElementById(id), config);
+    }
+
+    async function renderDashboard() {
+      if (!GLOBAL_DATA) {
+        const res = await fetch('data.json');
+        GLOBAL_DATA = await res.json();
+      }
+
+      const catFlt = document.getElementById('flt-category').value;
+      const statFlt = document.getElementById('flt-status').value;
+      const searchFlt = document.getElementById('flt-search').value.toLowerCase();
+
+      const filteredObjects = GLOBAL_DATA.objects.filter(o => {
+        if (catFlt && o.category !== catFlt) return false;
+        if (statFlt && o.status !== statFlt) return false;
+        if (searchFlt && !o.name.toLowerCase().includes(searchFlt) && !o.code.toLowerCase().includes(searchFlt)) return false;
+        return true;
       });
 
-      DATA.objects.forEach(o => {
+      const filteredIds = new Set(filteredObjects.map(o => o.id));
+      const filteredEvents = GLOBAL_DATA.events.filter(e => filteredIds.has(e.object_id));
+
+      // KPI
+      document.getElementById('kpi-total').textContent = filteredObjects.length;
+      document.getElementById('kpi-active').textContent = filteredObjects.filter(o => o.status === 'active').length;
+      document.getElementById('kpi-events').textContent = filteredEvents.length;
+      document.getElementById('kpi-crit').textContent = filteredEvents.filter(e => e.severity === 'critical').length;
+
+      // Очищення шарів карти
+      markersLayer.clearLayers();
+      areasLayer.clearLayers();
+      osmLayer.clearLayers();
+
+      GLOBAL_DATA.areas.forEach(a => {
+        const coords = JSON.parse(a.coords_json)[0].map(c => [c[1], c[0]]);
+        L.polygon(coords, { color: '#F39200', weight: 1.5, fillColor: '#4D4634', fillOpacity: 0.18 })
+          .bindPopup(`<b>${a.name}</b><br>Площа: ${a.area_sq_km} км²`)
+          .addTo(areasLayer);
+      });
+
+      GLOBAL_DATA.osm.forEach(osm => {
+        L.circleMarker([osm.lat, osm.lon], { radius: 5, color: '#293757', fillColor: '#38BDF8', fillOpacity: 0.85 })
+          .bindPopup(`<b>OSM: ${osm.name}</b>`)
+          .addTo(osmLayer);
+      });
+
+      filteredObjects.forEach(o => {
         const sym = new ms.Symbol(o.sidc, { size: 28, uniqueDesignation: o.code.replace('UAF-SYN-', ''), infoFields: true });
         const anchor = sym.getAnchor();
         const sz = sym.getSize();
         const icon = L.divIcon({ className: 'milsymbol-icon', html: sym.asSVG(), iconSize: [sz.width, sz.height], iconAnchor: [anchor.x, anchor.y] });
         L.marker([o.latitude, o.longitude], { icon })
           .bindPopup(`<b>${o.name}</b><br>Код: ${o.code}<br>Статус: ${o.status}`)
-          .on('click', () => {
-            map.flyTo([o.latitude, o.longitude], 10, { duration: 1.0 });
-            document.getElementById('detail-box').innerHTML = `
-              <div class="flex items-start justify-between border-b border-uaf-mundyr pb-2">
-                <div><span class="font-mono bg-uaf-mundyr text-uaf-gold px-2 py-0.5 rounded">${o.code}</span><h3 class="text-sm font-bold text-white mt-1">${o.name}</h3></div>
-                <div class="w-12 h-12 flex items-center justify-center bg-uaf-darkbg rounded border border-uaf-mundyr">${makeSvg(o.sidc, 32)}</div>
-              </div>
-              <div>Вид/Сили: <b>${o.category}</b></div>
-              <div>Статус: <b class="text-uaf-gold uppercase">${o.status}</b></div>
-              <div>SIDC: <b class="font-mono">${o.sidc}</b></div>
-              <div>Координати: <b>${o.latitude.toFixed(4)}° N, ${o.longitude.toFixed(4)}° E</b></div>
-            `;
-          })
-          .addTo(map);
+          .on('click', () => selectObject(o.id))
+          .addTo(markersLayer);
       });
 
-      document.getElementById('kpi-total').textContent = DATA.objects.length;
-      document.getElementById('kpi-active').textContent = DATA.objects.filter(o => o.status === 'active').length;
-      document.getElementById('kpi-events').textContent = DATA.events.length;
-
-      document.getElementById('tbody').innerHTML = DATA.objects.map(o => `
+      // Таблиця
+      document.getElementById('table-count').textContent = filteredObjects.length;
+      document.getElementById('tbody').innerHTML = filteredObjects.map(o => `
         <tr class="hover:bg-uaf-mundyr/40">
           <td class="p-2.5"><div class="w-8 h-8 flex items-center justify-center">${makeSvg(o.sidc, 22)}</div></td>
           <td class="p-2.5 font-mono font-bold text-uaf-gold">${o.code}</td>
@@ -312,18 +488,91 @@ html_content = """<!DOCTYPE html>
           <td class="p-2.5 uppercase font-semibold text-uaf-gold">${o.status}</td>
           <td class="p-2.5 font-mono">${o.latitude.toFixed(4)}, ${o.longitude.toFixed(4)}</td>
           <td class="p-2.5 text-right">
-            <button onclick="map.flyTo([${o.latitude}, ${o.longitude}], 10)" class="bg-uaf-gold hover:bg-amber-500 text-black font-bold px-2.5 py-1 rounded-sm">На карті</button>
+            <button onclick="selectObject(${o.id})" class="bg-uaf-gold hover:bg-amber-500 text-black font-bold px-2.5 py-1 rounded-sm">На карті</button>
           </td>
         </tr>
       `).join('');
+
+      // Графіки Chart.js
+      const palette = ['#F39200', '#6A653A', '#035C6B', '#293757', '#671318', '#707276', '#444A38', '#E52421'];
+      const commonOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#D6D3D1', font: { size: 10 } } } }, scales: { x: { ticks: { color: '#D6D3D1', font: { size: 9 } } }, y: { ticks: { color: '#D6D3D1', font: { size: 10 } } } } };
+
+      const ts = GLOBAL_DATA.timeseries;
+      renderChart('chart-ts', {
+        type: 'line',
+        data: {
+          labels: ts.map(x => x.date),
+          datasets: [
+            { label: 'Усього подій', data: ts.map(x => x.events_count), borderColor: '#F39200', backgroundColor: 'rgba(243,146,0,0.2)', fill: true },
+            { label: 'Критичні', data: ts.map(x => x.critical_events), borderColor: '#E52421', backgroundColor: 'rgba(229,36,33,0.3)', fill: true }
+          ]
+        },
+        options: commonOpts
+      });
+
+      const catMap = {};
+      filteredObjects.forEach(o => { catMap[o.category] = (catMap[o.category] || 0) + 1; });
+      renderChart('chart-cat', {
+        type: 'bar',
+        data: {
+          labels: Object.keys(catMap),
+          datasets: [{ label: "Об'єкти", data: Object.values(catMap), backgroundColor: palette }]
+        },
+        options: { ...commonOpts, indexAxis: 'y' }
+      });
+
+      const statMap = {};
+      filteredObjects.forEach(o => { statMap[o.status] = (statMap[o.status] || 0) + 1; });
+      renderChart('chart-stat', {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(statMap),
+          datasets: [{ data: Object.values(statMap), backgroundColor: palette }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#D6D3D1', font: { size: 10 } } } } }
+      });
+
+      renderChart('chart-readiness', {
+        type: 'line',
+        data: {
+          labels: ts.map(x => x.date),
+          datasets: [{ label: 'Готовність (%)', data: ts.map(x => x.readiness_index), borderColor: '#F39200', strokeWidth: 2 }]
+        },
+        options: commonOpts
+      });
+
+      renderChart('chart-res', {
+        type: 'bar',
+        data: {
+          labels: ['ПММ', 'Енергія', 'Зв’язок', 'Медицина', 'Інженерія', 'Транспорт'],
+          datasets: [
+            { label: 'Доступно', data: [240, 200, 190, 220, 170, 210], backgroundColor: '#6A653A' },
+            { label: 'У використанні', data: [160, 100, 110, 80, 130, 90], backgroundColor: '#F39200' }
+          ]
+        },
+        options: commonOpts
+      });
+
+      const sevMap = { critical: 0, high: 0, medium: 0, low: 0 };
+      filteredEvents.forEach(e => { if (sevMap[e.severity] !== undefined) sevMap[e.severity]++; });
+      renderChart('chart-sev', {
+        type: 'bar',
+        data: {
+          labels: ['Критичний', 'Високий', 'Середній', 'Низький'],
+          datasets: [{ label: 'Події', data: [sevMap.critical, sevMap.high, sevMap.medium, sevMap.low], backgroundColor: ['#E52421', '#F39200', '#035C6B', '#6A653A'] }]
+        },
+        options: commonOpts
+      });
     }
 
-    window.addEventListener('DOMContentLoaded', initDashboard);
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      renderDashboard();
+    });
   </script>
 </body>
 </html>
 """
 
 Path("index.html").write_text(html_content, encoding="utf-8")
-print("Успішно створено файл index.html та data.json!")
-print("Тепер відкрийте index.html через локальний сервер (або подвійним кліком через python -m http.server 8000).")
+print("Успішно оновлено index.html та data.json з повним набором аналітичних графіків!")
