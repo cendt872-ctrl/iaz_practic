@@ -1,0 +1,2596 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ІАС «Таврія» (АСУВ «Дніпро») — Інформаційно-аналітична панель ЗС України</title>
+<!-- Підключення Leaflet для OpenStreetMap (#map=7/49.289/30.476) з підтримкою Offline-режиму -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+:root {
+  /* Палітра «Керівництва з використання графічного стилю у візуальній комунікації ЗСУ» */
+  --uaf-olive-dark: #181b12;
+  --uaf-olive-panel: #22271a;
+  --uaf-olive-card: #2c3322;
+  --uaf-olive-hover: #37402a;
+  --uaf-olive-border: #4a5438;
+  --uaf-steppe-sand: #d8d2c5;
+  --uaf-gold: #d4af37;
+  --uaf-gold-muted: #b8973d;
+  --uaf-crimson: #8c1d40;
+  --uaf-khaki-muted: #9fa68f;
+  --uaf-white: #f4f4f0;
+
+  /* Кольори тактичної обстановки за ВКДП 5(3)-00(01).02 */
+  --tac-friendly: #2563eb;
+  --tac-friendly-light: #60a5fa;
+  --tac-friendly-bg: rgba(37, 99, 235, 0.18);
+  --tac-hostile: #dc2626;
+  --tac-hostile-light: #f87171;
+  --tac-hostile-bg: rgba(220, 38, 38, 0.18);
+  --tac-neutral: #16a34a;
+  --tac-warning: #eab308;
+
+  --font-uaf: 'UAF Sans', 'Bahnschrift', 'DIN Pro', 'Roboto Condensed', 'Segoe UI', sans-serif;
+  --font-doc: 'Times New Roman', Times, serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background-color: var(--uaf-olive-dark);
+  color: var(--uaf-white);
+  font-family: var(--font-uaf);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+
+/* ВЕРХНЯ ПАНЕЛЬ З ЕМБЛЕМОЮ ЗСУ */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: linear-gradient(90deg, #1b2014 0%, #2a321f 65%, #313a24 100%);
+  border-bottom: 3px solid var(--uaf-gold);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.uaf-emblem-box {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.brand-title h1 {
+  font-size: 16.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--uaf-white);
+}
+.brand-title p {
+  font-size: 11.5px;
+  color: var(--uaf-steppe-sand);
+  letter-spacing: 0.3px;
+}
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.status-badge {
+  background: rgba(22, 163, 74, 0.2);
+  border: 1px solid #22c55e;
+  color: #86efac;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.op-clock {
+  background: #14170f;
+  border: 1px solid var(--uaf-gold);
+  padding: 5px 12px;
+  font-family: monospace;
+  font-size: 13.5px;
+  color: var(--uaf-gold);
+  font-weight: 700;
+}
+
+/* КНОПКИ ЗА БРЕНДБУКОМ ЗСУ */
+.btn {
+  background: var(--uaf-olive-card);
+  color: var(--uaf-white);
+  border: 1px solid var(--uaf-olive-border);
+  padding: 6px 13px;
+  cursor: pointer;
+  font-family: var(--font-uaf);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover {
+  background: var(--uaf-olive-hover);
+  border-color: var(--uaf-gold);
+  color: var(--uaf-gold);
+}
+.btn-primary {
+  background: #4a5320;
+  border-color: var(--uaf-gold);
+  color: var(--uaf-white);
+}
+.btn-primary:hover {
+  background: #5b6628;
+  color: #fff;
+}
+.btn-crimson {
+  background: var(--uaf-crimson);
+  border-color: #b82956;
+  color: #fff;
+}
+.btn-crimson:hover {
+  background: #a3224b;
+  border-color: var(--uaf-gold);
+}
+
+/* ГЛОБАЛЬНА ПАНЕЛЬ ФІЛЬТРІВ */
+.filter-bar {
+  background: var(--uaf-olive-panel);
+  border-bottom: 1px solid var(--uaf-olive-border);
+  padding: 9px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-group label {
+  font-size: 11px;
+  color: var(--uaf-khaki-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.filter-control {
+  background: #161911;
+  color: var(--uaf-white);
+  border: 1px solid var(--uaf-olive-border);
+  padding: 5px 10px;
+  font-family: var(--font-uaf);
+  font-size: 12px;
+}
+.filter-control:focus {
+  outline: none;
+  border-color: var(--uaf-gold);
+}
+.active-filters-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.filter-tag {
+  background: rgba(212, 175, 55, 0.16);
+  border: 1px solid var(--uaf-gold);
+  color: var(--uaf-gold);
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* НАВІГАЦІЙНІ ВКЛАДКИ */
+.nav-tabs {
+  display: flex;
+  background: #141810;
+  border-bottom: 1px solid var(--uaf-olive-border);
+  padding: 0 20px;
+  overflow-x: auto;
+  gap: 4px;
+}
+.nav-tab {
+  padding: 11px 16px;
+  cursor: pointer;
+  color: var(--uaf-khaki-muted);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.nav-tab:hover {
+  color: var(--uaf-white);
+  background: rgba(255,255,255,0.03);
+}
+.nav-tab.active {
+  color: var(--uaf-gold);
+  border-bottom-color: var(--uaf-gold);
+  background: rgba(74, 83, 32, 0.35);
+}
+
+/* РОБОЧА ОБЛАСТЬ */
+.workspace {
+  padding: 16px 20px;
+  max-width: 1920px;
+  margin: 0 auto;
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* КАРТКИ KPI У СТИЛІ ЗСУ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.kpi-card {
+  background: var(--uaf-olive-panel);
+  border: 1px solid var(--uaf-olive-border);
+  padding: 12px 15px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+  position: relative;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--uaf-gold);
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 5px;
+  background: var(--tac-friendly);
+}
+.kpi-card.hostile::before { background: var(--tac-hostile); }
+.kpi-card.warning::before { background: var(--uaf-gold); }
+.kpi-card.neutral::before { background: var(--tac-neutral); }
+.kpi-card.crimson::before { background: var(--uaf-crimson); }
+
+.kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  font-size: 11px;
+  color: var(--uaf-steppe-sand);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+.kpi-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--uaf-white);
+  margin-bottom: 4px;
+}
+.kpi-sub {
+  font-size: 11px;
+  color: var(--uaf-khaki-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.delta-pos { color: #86efac; font-weight: 700; }
+.delta-neg { color: #fca5a5; font-weight: 700; }
+.delta-warn { color: var(--uaf-gold); font-weight: 700; }
+
+/* ПАНЕЛІ ТА СІТКА */
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1.48fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.grid-equal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1200px) {
+  .grid-2col, .grid-equal, .grid-3col { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--uaf-olive-panel);
+  border: 1px solid var(--uaf-olive-border);
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  padding: 10px 14px;
+  background: rgba(20, 24, 15, 0.65);
+  border-bottom: 2px solid var(--uaf-olive-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.panel-title {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--uaf-gold);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-body {
+  padding: 14px;
+  flex: 1;
+}
+
+/* OPENSTREETMAP ТА РЕЗЕРВНА ВЕКТОРНА КАРТА */
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 560px;
+  background: #141911;
+  overflow: hidden;
+  border: 1px solid var(--uaf-olive-border);
+}
+#osmMapCanvas {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+#tacticalMapSvg {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  display: none;
+  background: #111814;
+}
+#tacticalMapSvg:active { cursor: grabbing; }
+
+/* Маркери ВКДП 5(3)-00(01).02 поверх OpenStreetMap */
+.leaflet-div-icon.nato-map-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.nato-marker-label {
+  text-align: center;
+  font-family: var(--font-uaf);
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  margin-top: -8px;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.95);
+}
+
+.map-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(24, 27, 18, 0.94);
+  border: 1px solid var(--uaf-gold);
+  padding: 9px 13px;
+  font-size: 11px;
+  z-index: 500;
+  max-width: 375px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+}
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.legend-swatch {
+  width: 16px;
+  height: 10px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.map-inspector {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 315px;
+  background: rgba(24, 27, 18, 0.96);
+  border: 2px solid var(--uaf-gold);
+  padding: 12px;
+  z-index: 500;
+  display: none;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.8);
+}
+
+/* ТАБЛИЦІ */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.data-table th, table.data-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--uaf-olive-border);
+}
+table.data-table th {
+  background: #161a11;
+  color: var(--uaf-steppe-sand);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+table.data-table th:hover {
+  color: var(--uaf-gold);
+  background: #1f2518;
+}
+table.data-table tr:hover td {
+  background: rgba(212, 175, 55, 0.08);
+}
+.num-col { text-align: right !important; font-variant-numeric: tabular-nums; }
+.badge-side {
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  display: inline-block;
+}
+.side-friendly { background: var(--tac-friendly-bg); color: #93c5fd; border: 1px solid var(--tac-friendly); }
+.side-hostile { background: var(--tac-hostile-bg); color: #fca5a5; border: 1px solid var(--tac-hostile); }
+.readiness-bar {
+  width: 100%;
+  height: 7px;
+  background: #14170f;
+  overflow: hidden;
+  margin-top: 3px;
+  border: 1px solid #353d28;
+}
+.readiness-fill { height: 100%; }
+
+/* ДІАГРАМИ СПІВВІДНОШЕННЯ */
+.chart-box {
+  width: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.bar-row { margin-bottom: 12px; }
+.bar-label-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  margin-bottom: 4px;
+}
+.dual-bar-track {
+  display: flex;
+  height: 16px;
+  overflow: hidden;
+  background: #14170f;
+  border: 1px solid var(--uaf-olive-border);
+}
+.dual-bar-friendly { background: var(--tac-friendly); height: 100%; transition: width 0.3s; }
+.dual-bar-hostile { background: var(--tac-hostile); height: 100%; transition: width 0.3s; }
+
+/* ГЕНЕРАТОР ДОКУМЕНТІВ (ВКДП 5(3)-00(01).02) */
+.doc-preview-sheet {
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--font-doc);
+  font-size: 14pt;
+  line-height: 1.35;
+  padding: 20mm 15mm 20mm 28mm;
+  max-width: 210mm;
+  margin: 0 auto;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.75);
+}
+.doc-preview-sheet .doc-stamp {
+  text-align: right;
+  font-weight: bold;
+  margin-bottom: 14px;
+}
+.doc-preview-sheet .doc-center-header {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+.doc-preview-sheet p {
+  text-indent: 12.5mm;
+  text-align: justify;
+  margin-bottom: 8px;
+}
+.doc-preview-sheet .doc-sig {
+  margin-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  gap: 20px;
+}
+
+/* МОДАЛЬНЕ ВІКНО */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+.modal-content {
+  background: var(--uaf-olive-panel);
+  border: 2px solid var(--uaf-gold);
+  max-width: 860px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.85);
+}
+
+/* ФОРМИ */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-field label {
+  font-size: 11px;
+  color: var(--uaf-steppe-sand);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.form-field input, .form-field select, .form-field textarea {
+  background: #161911;
+  border: 1px solid var(--uaf-olive-border);
+  color: var(--uaf-white);
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.tooltip-hint {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--uaf-olive-card);
+  border: 1px solid var(--uaf-gold);
+  color: var(--uaf-gold);
+  text-align: center;
+  font-size: 10px;
+  line-height: 14px;
+  cursor: help;
+}
+</style>
+</head>
+<body>
+
+<!-- ШАПКА ЗА БРЕНДБУКОМ ЗС УКРАЇНИ -->
+<header class="app-header">
+  <div class="brand-block">
+    <div class="uaf-emblem-box" title="Емблема Збройних Сил України (Керівництво з використання графічного стилю у візуальній комунікації ЗСУ)">
+      <svg width="44" height="44" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="35,4 65,4 58,38 42,38" fill="#8C1D40" stroke="#D4AF37" stroke-width="3"/>
+        <polygon points="35,96 65,96 58,62 42,62" fill="#8C1D40" stroke="#D4AF37" stroke-width="3"/>
+        <polygon points="4,35 4,65 38,58 38,42" fill="#8C1D40" stroke="#D4AF37" stroke-width="3"/>
+        <polygon points="96,35 96,65 62,58 62,42" fill="#8C1D40" stroke="#D4AF37" stroke-width="3"/>
+        <circle cx="50" cy="50" r="18" fill="#182B49" stroke="#D4AF37" stroke-width="3.2"/>
+        <path d="M50,36 L50,62 M43,40 L43,54 Q43,59 50,59 Q57,59 57,54 L57,40 M43,49 L57,49" fill="none" stroke="#D4AF37" stroke-width="2.6" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="brand-title">
+      <h1>ЗБРОЙНІ СИЛИ УКРАЇНИ • ІАС «ТАВРІЯ» (АСУВ «ДНІПРО»)</h1>
+      <p>Моніторинг обстановки ОТУ «Запоріжжя» та ОСУВ «Хортиця», розрахунок співвідношення сил і формування документів (ВКДП 5(3)-00(01).02)</p>
+    </div>
+  </div>
+  <div class="header-meta">
+    <span class="status-badge" id="autonomyBadge">● ЗСУ ГРАФІЧНИЙ СТИЛЬ | ВКДП 5(3)-00(01).02</span>
+    <div class="op-clock" id="opClock" title="Оперативний час за стандартом ВКДП: ГГ.ХХ ДД.ММ.РРРР">09.00 15.09.2026</div>
+    <button class="btn" onclick="exportFullSnapshotJSON()" title="Експортувати поточний зріз оперативних даних у JSON">⬇ Експорт JSON</button>
+    <button class="btn" onclick="document.getElementById('importFileInput').click()" title="Імпортувати користувацький JSON через FileReader">⬆ Імпорт JSON</button>
+    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportJSON(event)">
+    <button class="btn btn-crimson" onclick="resetAllDataToSeed()" title="Відновити початковий стан оперативної бази даних">↺ Скинути БД</button>
+  </div>
+</header>
+
+<!-- ГЛОБАЛЬНА ПАНЕЛЬ ФІЛЬТРІВ -->
+<section class="filter-bar">
+  <div class="filter-group">
+    <label for="fltSide">Сторона:</label>
+    <select id="fltSide" class="filter-control" onchange="onSideFilterChange()">
+      <option value="ALL">Усі сторони (Свої війська + Противник)</option>
+      <option value="FRIENDLY">Свої війська (ЗС України)</option>
+      <option value="HOSTILE">Противник («Східні»)</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="fltGrouping">Об'єднання / УВ:</label>
+    <select id="fltGrouping" class="filter-control" onchange="applyGlobalFilters()">
+      <option value="ALL">Усі угруповання в смузі</option>
+      <option value="ОТУ «Запоріжжя»">ОТУ «Запоріжжя» (9 АК, 10 АК, 30 КМП)</option>
+      <option value="ОСУВ «Хортиця»">ОСУВ «Хортиця» (ОТУ «Донецьк», 11 АК)</option>
+      <option value="УВ «Південь»">УВ «Південь» противника (8 А, 51 А, 49 А, 58 А)</option>
+      <option value="УВ «Крим»">УВ «Крим» противника (18 А)</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="fltBranch">Рід військ / Сили:</label>
+    <select id="fltBranch" class="filter-control" onchange="applyGlobalFilters()">
+      <option value="ALL">Усі роди військ</option>
+      <option value="КП / Управління">КП / Органи управління</option>
+      <option value="Механізовані / Танкові">Механізовані / Танкові / МП / ДШВ</option>
+      <option value="РВіА">Ракетні війська і артилерія (РВіА)</option>
+      <option value="ППО / ПС">ППО / Повітряні Сили / АА</option>
+      <option value="БпС / Розвідка / РЕР">Безпілотні системи / Розвідка / РЕР</option>
+      <option value="Забезпечення">Логістика / Зв'язок / Інженерні</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="fltStatus">Положення:</label>
+    <select id="fltStatus" class="filter-control" onchange="applyGlobalFilters()">
+      <option value="ALL">Наявні + Заплановані</option>
+      <option value="PRESENT">Дійсне (наявне) положення</option>
+      <option value="PLANNED">Заплановане / На маршрутах</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="fltSearch">Пошук:</label>
+    <input type="text" id="fltSearch" class="filter-control" placeholder="Назва, ОКП, ОВТ..." oninput="applyGlobalFilters()">
+  </div>
+  <button class="btn" onclick="resetGlobalFilters()">✕ Скинути фільтри</button>
+  <div class="active-filters-tags" id="activeFilterTags"></div>
+</section>
+
+<!-- НАВІГАЦІЙНІ ВКЛАДКИ -->
+<nav class="nav-tabs">
+  <div class="nav-tab active" onclick="switchTab('tab-overview', this)">1. Оперативна панель & Мапа OSM (ОТУ «Запоріжжя»)</div>
+  <div class="nav-tab" onclick="switchTab('tab-forces', this)">2. Співвідношення сил & Втрати</div>
+  <div class="nav-tab" onclick="switchTab('tab-artillery', this)">3. РВіА та Вогневе ураження</div>
+  <div class="nav-tab" onclick="switchTab('tab-air', this)">4. ППО, Авіація та БпС</div>
+  <div class="nav-tab" onclick="switchTab('tab-toe', this)">5. Довідник штатних нормативів ОШС</div>
+  <div class="nav-tab" onclick="switchTab('tab-journal', this)">6. Журнал бойових дій & Введення</div>
+  <div class="nav-tab" onclick="switchTab('tab-docs', this)">7. Документи та Символіка (ВКДП 5(3)-00(01).02)</div>
+</nav>
+
+<!-- ОСНОВНИЙ РОБОЧИЙ ПРОСТІР -->
+<main class="workspace">
+
+  <!-- РЯД КАРТОК KPI -->
+  <div class="kpi-grid" id="kpiContainer"></div>
+
+  <!-- ВКЛАДКА 1: ОПЕРАТИВНА ПАНЕЛЬ ТА МАПА OPENSTREETMAP -->
+  <section id="tab-overview" class="tab-pane active">
+    <div class="grid-2col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🗺️ Карта оперативної обстановки (OpenStreetMap: #map=7/49.289/30.476)</span>
+            <span class="tooltip-hint" title="Жива топографічна основа OpenStreetMap з нанесеними умовними знаками за Розділом 5 ВКДП 5(3)-00(01).02. Клік по знаку відкриває інспектор.">?</span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btnModeOsm" onclick="setMapMode('OSM')">🌐 OpenStreetMap (49.289, 30.476)</button>
+            <button class="btn" id="btnFocusKalmius" onclick="focusMapSector()">🎯 Смуга ОТУ «Запоріжжя»</button>
+            <button class="btn" id="btnModeSvg" onclick="setMapMode('SVG')">📐 Векторна схема (Offline)</button>
+            <button class="btn" id="btnTogglePlanned" onclick="toggleLayer('planned')">Пунктир (Заплановані)</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:8px;">
+          <div class="map-container" id="mapWrapper">
+            <div id="osmMapCanvas"></div>
+            <svg id="tacticalMapSvg" viewBox="0 0 1000 620" xmlns="http://www.w3.org/2000/svg"></svg>
+
+            <!-- КАРТКА-ІНСПЕКТОР ОБ'ЄКТА НА КАРТІ -->
+            <div class="map-inspector" id="mapInspector">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong id="inspTitle" style="color:var(--uaf-gold); font-size:13px; text-transform:uppercase;">Об'єкт</strong>
+                <button class="btn" style="padding:2px 6px;" onclick="closeMapInspector()">✕</button>
+              </div>
+              <div id="inspSvgPreview" style="text-align:center; padding:8px; background:#14170f; border:1px solid var(--uaf-olive-border); margin-bottom:8px;"></div>
+              <div id="inspBody" style="font-size:11.5px; line-height:1.5;"></div>
+            </div>
+
+            <!-- ЛЕГЕНДА КАРТИ ЗА ВКДП -->
+            <div class="map-legend">
+              <div style="font-weight:800; margin-bottom:4px; color:var(--uaf-gold); text-transform:uppercase;">Умовні знаки за ВКДП 5(3)-00(01).02 (Розд. 5):</div>
+              <div class="legend-row"><span class="legend-swatch" style="background:#2563eb; border:1px solid #93c5fd;"></span> Свої війська (ОТУ «Запоріжжя»: 9 АК, 10 АК, 30 КМП; ОТУ «Донецьк»)</div>
+              <div class="legend-row"><span class="legend-swatch" style="background:#dc2626; border:1px solid #fca5a5;"></span> Противник (УВ «Південь»: 8 А, 51 А, 49 А, 58 А; УВ «Крим»: 18 А)</div>
+              <div class="legend-row"><span class="legend-swatch" style="border:2px dashed #eab308; background:transparent;"></span> Рубіж ізоляції (Приморське—Волноваха—Мар'їнка—Покровськ—Золоте)</div>
+              <div class="legend-row"><span class="legend-swatch" style="background:#16a34a;"></span> Поділ AL: Боєздатний (&gt;85%) | <span class="legend-swatch" style="background:#eab308;"></span> Частково | <span class="legend-swatch" style="background:#dc2626;"></span> Втрати &gt;30%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ПРАВА КОЛОНКА АНАЛІТИКИ -->
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">⚖️ Співвідношення сил у смузі ОСУВ «Хортиця» та ОТУ «Запоріжжя»</div>
+          </div>
+          <div class="panel-body">
+            <div id="overviewForceRatioChart" class="chart-box"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">📋 Дислокація пунктів управління та з'єднань (клік — фокус на мапі)</div>
+          </div>
+          <div class="panel-body" style="padding:0;">
+            <div class="table-wrap" style="max-height:305px; overflow-y:auto;">
+              <table class="data-table" id="mapUnitsTable">
+                <thead>
+                  <tr>
+                    <th onclick="sortMapUnits('name')">Формування (Поділ T) ⬍</th>
+                    <th onclick="sortMapUnits('side')">Сторона ⬍</th>
+                    <th onclick="sortMapUnits('Grouping')">Вище форм. (Поділ M) ⬍</th>
+                    <th onclick="sortMapUnits('hq')">ОКП / Район ⬍</th>
+                    <th class="num-col" onclick="sortMapUnits('personnel')">О/С ⬍</th>
+                    <th class="num-col" onclick="sortMapUnits('readiness')">Поділ AL ⬍</th>
+                  </tr>
+                </thead>
+                <tbody id="mapUnitsTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 2: СПІВВІДНОШЕННЯ СИЛ ТА ВТРАТИ -->
+  <section id="tab-forces" class="tab-pane">
+    <div class="grid-equal">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📊 Бойовий та чисельний склад стратегічних угруповань військ противника («Східні»)</div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div class="table-wrap">
+            <table class="data-table" id="hostileGroupingsTable">
+              <thead>
+                <tr>
+                  <th>Угруповання військ</th>
+                  <th>Бойовий склад (армії, корпуси)</th>
+                  <th class="num-col">О/С (тис.)</th>
+                  <th class="num-col">Танки</th>
+                  <th class="num-col">ББМ</th>
+                  <th class="num-col">Арт.</th>
+                  <th class="num-col">РСЗВ</th>
+                  <th class="num-col">ПУ ОТРК</th>
+                  <th class="num-col">ППО</th>
+                  <th class="num-col">Літаки</th>
+                  <th class="num-col">Верт.</th>
+                </tr>
+              </thead>
+              <tbody id="hostileGroupingsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📉 Аналіз втрат та ступеня боєздатності угруповань за підсумками попередніх дій</div>
+        </div>
+        <div class="panel-body">
+          <div id="lossesBreakdownContainer"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🧮 Інтерактивний калькулятор співвідношення сил та бойових потенціалів у смузі ОТУ «Запоріжжя»</div>
+        <span style="font-size:11px; color:var(--uaf-steppe-sand);">Змініть середній відсоток укомплектованості (9 АК, 10 АК, 30 КМП) або сценарій введення резервів противника</span>
+      </div>
+      <div class="panel-body">
+        <div class="grid-3col" id="forceSimulatorControls">
+          <div class="form-field">
+            <label>Укомплектованість ОТУ «Запоріжжя» (%): <span id="lblSimFriendlyPct" style="color:var(--uaf-gold);">92%</span></label>
+            <input type="range" id="simFriendlyPct" min="50" max="100" value="92" oninput="runForceSimulation()">
+          </div>
+          <div class="form-field">
+            <label>Боєздатність 8 А та 51 А противника після втрат (%): <span id="lblSimHostilePct" style="color:var(--uaf-gold);">72%</span></label>
+            <input type="range" id="simHostilePct" min="40" max="100" value="72" oninput="runForceSimulation()">
+          </div>
+          <div class="form-field">
+            <label>Варіант нарощування зусиль противника (УВ «Південь»):</label>
+            <select id="simHostileReserve" onchange="runForceSimulation()">
+              <option value="first_echelon">Перший оперативний ешелон (8 А + 51 А)</option>
+              <option value="full_south">Повне введення резервів УВ «Південь» (з 49 А, 58 А, 3 А)</option>
+              <option value="with_crimea">УВ «Південь» + УВ «Крим» (18 А)</option>
+            </select>
+          </div>
+        </div>
+        <div id="simResultsOutput" style="margin-top:14px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 3: РВіА ТА ВОГНЕВЕ УРАЖЕННЯ -->
+  <section id="tab-artillery" class="tab-pane">
+    <div class="grid-equal">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🎯 Дальність дії засобів вогневого ураження РВіА в оперативній зоні</div>
+        </div>
+        <div class="panel-body">
+          <div id="artilleryRangeChart"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📡 Засоби артилерійської розвідки та контрбатарейної боротьби (15 обрар / оабр)</div>
+        </div>
+        <div class="panel-body">
+          <div id="artilleryReconSummary"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📋 Зведена відомість частин і підрозділів РВіА та артилерійської розвідки</div>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Код ОШС</th>
+                <th>Найменування частини / з'єднання</th>
+                <th>Підпорядкування</th>
+                <th class="num-col">О/С</th>
+                <th>Основне озброєння (ПУ / САУ / Гармати)</th>
+                <th>Повний перелік ОВТ та засобів розвідки</th>
+              </tr>
+            </thead>
+            <tbody id="artilleryUnitsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 4: ППО, АВІАЦІЯ ТА БпС -->
+  <section id="tab-air" class="tab-pane">
+    <div class="grid-equal">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🛡️ Ешелонована система ППО Сухопутних військ, ОК та армійських корпусів (9 АК, 10 АК)</div>
+        </div>
+        <div class="panel-body">
+          <div id="airDefenseChart"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🛸 Розподіл парку безпілотних авіаційних (БпАК) та наземних (НРК) комплексів</div>
+        </div>
+        <div class="panel-body">
+          <div id="uavDistributionChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📋 Штатний склад частин ППО, РТВ, армійської авіації та безпілотних систем</div>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Код ОШС</th>
+                <th>Частина / Підрозділ</th>
+                <th class="num-col">О/С</th>
+                <th>ЗРК / ЗСУ / ПЗРК / Вертольоти</th>
+                <th>РЛС / Комплекси БпАК та НРК</th>
+                <th>Призначення в операції</th>
+              </tr>
+            </thead>
+            <tbody id="airUnitsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 5: ДОВІДНИК ШТАТНИХ НОРМАТИВІВ ОШС -->
+  <section id="tab-toe" class="tab-pane">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📚 Довідник організаційно-штатних структур та нормативів ОВТ (34 типових штати)</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="toeSearchInput" class="filter-control" placeholder="Фільтр за назвою або зразком ОВТ (напр. Bradley, IRIS-T, Богдана)..." style="width:320px;" oninput="renderToeTable()">
+          <select id="toeCategorySelect" class="filter-control" onchange="renderToeTable()">
+            <option value="ALL">Усі категорії (№ 1–34)</option>
+            <option value="Загальновійськові">Загальновійськові (омбр, омпбр, овмбр, оптб, обр МП)</option>
+            <option value="РВіА">РВіА та Арт. розвідка (орбр, ореабр, оабр, обрар)</option>
+            <option value="ППО та РТВ">ППО та РТВ (зрбр, зрп, зенап, ортбр, ортб)</option>
+            <option value="Авіація та БпС">Авіація та БпС (обр АА, оп БпС, об БпС)</option>
+            <option value="Розвідка, Зв'язок, Логістика">Розвідка, РЕР, Зв'язок, Логістика (орб, оманЦ РЕР, опз, обМЗ)</option>
+          </select>
+          <button class="btn" onclick="exportToeCSV()">⬇ Експорт CSV</button>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th onclick="sortToe('appNum')">Код ОШС ⬍</th>
+                <th onclick="sortToe('code')">Умовне найменування ⬍</th>
+                <th onclick="sortToe('category')">Категорія ⬍</th>
+                <th class="num-col" onclick="sortToe('personnel')">О/С (осіб) ⬍</th>
+                <th class="num-col" onclick="sortToe('tanks')">Танки ⬍</th>
+                <th class="num-col" onclick="sortToe('bbm')">ББМ ⬍</th>
+                <th class="num-col" onclick="sortToe('art')">Арт./РСЗВ/ОТРК ⬍</th>
+                <th class="num-col" onclick="sortToe('airdef')">Засоби ППО ⬍</th>
+                <th>Основні зразки ОВТ за штатом</th>
+                <th>Дія</th>
+              </tr>
+            </thead>
+            <tbody id="toeTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 6: ЖУРНАЛ БОЙОВИХ ДІЙ ТА ВВЕДЕННЯ -->
+  <section id="tab-journal" class="tab-pane">
+    <div class="grid-2col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📓 Журнал бойових дій та оперативних донесень</div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Час / Дата (ВКДП)</th>
+                  <th>Напрямок / Об'єднання</th>
+                  <th>Сторона</th>
+                  <th>Зміст оперативної події / Донесення</th>
+                  <th>Вплив на обстановку</th>
+                </tr>
+              </thead>
+              <tbody id="journalTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">➕ Внести новий запис до Журналу бойових дій</div>
+          </div>
+          <div class="panel-body">
+            <form onsubmit="addJournalEntry(event)" class="form-grid">
+              <div class="form-field">
+                <label>Оперативний час (ГГ.ХХ ДД.ММ.РРРР):</label>
+                <input type="text" id="jTime" value="11.30 15.09.2026" required>
+              </div>
+              <div class="form-field">
+                <label>Напрямок / Смуга:</label>
+                <select id="jSector">
+                  <option value="ОТУ «Запоріжжя» (Запоріжжя)">ОТУ «Запоріжжя» (ОКП Запоріжжя)</option>
+                  <option value="9 АК (Гуляйполе)">9 АК (Гуляйполе)</option>
+                  <option value="10 АК (Токмак)">10 АК (Токмак)</option>
+                  <option value="30 КМП ВМС (Мелітополь)">30 КМП ВМС (Мелітополь)</option>
+                  <option value="ОТУ «Донецьк» / 11 АК">ОТУ «Донецьк» / 11 АК</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Сторона ініціатора:</label>
+                <select id="jSide">
+                  <option value="FRIENDLY">Свої війська (ЗС України)</option>
+                  <option value="HOSTILE">Противник («Східні»)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Категорія впливу:</label>
+                <select id="jImpact">
+                  <option value="Розгортання / Перегрупування">Розгортання / Перегрупування</option>
+                  <option value="Вогневе ураження / РВіА">Вогневе ураження / РВіА</option>
+                  <option value="ППО / Повітряна обстановка">ППО / Повітряна обстановка</option>
+                  <option value="Розвідка / ДРГ">Розвідка / ДРГ</option>
+                </select>
+              </div>
+              <div class="form-field" style="grid-column: 1 / -1;">
+                <label>Зміст донесення:</label>
+                <textarea id="jText" rows="3" placeholder="Наприклад: 15 обрар виявила розгортання КП 8 А противника в районі Іловайськ..." required></textarea>
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <button type="submit" class="btn btn-primary">＋ Зареєструвати в Журналі</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">📍 Нанести новий підрозділ / об'єкт на карту оперативної обстановки</div>
+          </div>
+          <div class="panel-body">
+            <form onsubmit="addNewMapUnit(event)" class="form-grid">
+              <div class="form-field">
+                <label>Найменування (Поділ T, напр. 47 омбр):</label>
+                <input type="text" id="uName" placeholder="47 омбр" required>
+              </div>
+              <div class="form-field">
+                <label>Сторона:</label>
+                <select id="uSide">
+                  <option value="FRIENDLY">Свої війська (ЗС України)</option>
+                  <option value="HOSTILE">Противник («Східні»)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Об'єднання (Поділ M):</label>
+                <select id="uGrouping">
+                  <option value="ОТУ «Запоріжжя»">ОТУ «Запоріжжя»</option>
+                  <option value="ОСУВ «Хортиця»">ОСУВ «Хортиця»</option>
+                  <option value="УВ «Південь»">УВ «Південь»</option>
+                  <option value="УВ «Крим»">УВ «Крим»</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Рід військ (ВКДП Розд. 5):</label>
+                <select id="uBranch">
+                  <option value="Механізовані / Танкові">Механізовані / Танкові</option>
+                  <option value="РВіА">РВіА</option>
+                  <option value="ППО / ПС">ППО / ПС</option>
+                  <option value="КП / Управління">КП / Управління</option>
+                  <option value="БпС / Розвідка / РЕР">БпС / Розвідка / РЕР</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Ешелон (Поділ E за ВКДП):</label>
+                <select id="uEchelon">
+                  <option value="X">X — Бригада</option>
+                  <option value="III">III — Полк</option>
+                  <option value="II">II — Батальйон / Дивізіон</option>
+                  <option value="XXX">XXX — Корпус / Армія</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Пункт дислокації / ОКП:</label>
+                <input type="text" id="uHq" placeholder="Оріхів" required>
+              </div>
+              <div class="form-field">
+                <label>Широта (Lat):</label>
+                <input type="number" step="0.001" id="uLat" value="47.567" required>
+              </div>
+              <div class="form-field">
+                <label>Довгота (Lng):</label>
+                <input type="number" step="0.001" id="uLng" value="35.788" required>
+              </div>
+              <div class="form-field">
+                <label>Чисельність О/С:</label>
+                <input type="number" id="uPers" value="5266" min="50" required>
+              </div>
+              <div class="form-field">
+                <label>Боєздатність (Поділ AL, %):</label>
+                <input type="number" id="uReadiness" value="95" min="10" max="100" required>
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <button type="submit" class="btn btn-primary">📍 Нанести на карту OSM за ВКДП та оновити KPI</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 7: ДОКУМЕНТИ ТА СИМВОЛІКА (ВКДП 5(3)-00(01).02) -->
+  <section id="tab-docs" class="tab-pane">
+    <div class="grid-2col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📄 Автоматизований формувач бойових документів (ВКДП 5(3)-00(01).02, Розд. 1–4)</div>
+          <div style="display:flex; gap:6px;">
+            <select id="docTypeSelect" class="filter-control" onchange="renderMilitaryDocument()">
+              <option value="combat_order">Бойове розпорядження (Додаток 7 ВКДП)</option>
+              <option value="op_directive">Оперативна директива (Додаток 8 ВКДП)</option>
+              <option value="sitrep">Підсумкове оперативне зведення на 09.00 15.09</option>
+            </select>
+            <button class="btn btn-primary" onclick="printMilitaryDocument()">🖨️ Друк / PDF</button>
+          </div>
+        </div>
+        <div class="panel-body" style="background:#1a1e14; padding:18px; overflow-x:auto;">
+          <div id="militaryDocContainer" class="doc-preview-sheet"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🛡️ Конструктор та верифікатор умовних знаків НАТО APP-6 (ВКДП 5(3)-00(01).02, Розд. 5–6)</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid" style="margin-bottom:14px;">
+            <div class="form-field">
+              <label>Приналежність (Табл. 5 ВКДП):</label>
+              <select id="symSide" onchange="updateSymbolBuilder()">
+                <option value="FRIENDLY">Свої війська (Прямокутник, Синій)</option>
+                <option value="HOSTILE">Противник (Ромб, Червоний)</option>
+                <option value="NEUTRAL">Нейтральні (Квадрат, Зелений)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Статус об'єкта (Табл. 8 ВКДП):</label>
+              <select id="symStatus" onchange="updateSymbolBuilder()">
+                <option value="PRESENT">Наявне положення (Суцільна лінія)</option>
+                <option value="PLANNED">Заплановане / Очікуване (Пунктирна лінія)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Основний знак (Табл. 15 ВКДП — віртуальний 8-кутник):</label>
+              <select id="symBranch" onchange="updateSymbolBuilder()">
+                <option value="MECH">Механізовані війська (Діагоналі + Гусениці)</option>
+                <option value="TANK">Танкові війська (Гусениці в межах 8-кутника)</option>
+                <option value="MARINE">Морська піхота ВМС (Діагоналі + Якір)</option>
+                <option value="ARTY">Артилерія (Круг у центрі 8-кутника)</option>
+                <option value="MISSILE">Ракетні війська (Ракета + Шеврони)</option>
+                <option value="AIRDEF">Протиповітряна оборона (Купол знизу + ППО)</option>
+                <option value="UAV">Безпілотні системи (Бумеранг БпАК у центрі)</option>
+                <option value="RECON">Розвідувальні підрозділи (Діагональ зліва-знизу)</option>
+                <option value="SIGNAL">Війська зв'язку (Блискавка між кутами рамки)</option>
+                <option value="LOG">Матеріальне забезпечення (Лінія основи + МЗ)</option>
+                <option value="HQ">Пункт управління / Штаб (Флагшток зліва + ОКП)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Поділ E (Величина формування — Табл. 9 ВКДП):</label>
+              <select id="symEchelon" onchange="updateSymbolBuilder()">
+                <option value="II">II — Батальйон / Дивізіон</option>
+                <option value="III">III — Полк</option>
+                <option value="X" selected>X — Бригада</option>
+                <option value="XX">XX — Дивізія</option>
+                <option value="XXX">XXX — Армійський корпус / Армія</option>
+                <option value="XXXX">XXXX — ОТУ / ОСУВ / Оперативне угруповання</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Поділ T (Унікальне позначення зліва — Рис. 15 ВКДП):</label>
+              <input type="text" id="symFieldT" value="47 омбр" oninput="updateSymbolBuilder()">
+            </div>
+            <div class="form-field">
+              <label>Поділ M (Вище формування справа — Рис. 15 ВКДП):</label>
+              <input type="text" id="symFieldM" value="9 АК" oninput="updateSymbolBuilder()">
+            </div>
+            <div class="form-field">
+              <label>Поділ W (Час оперативний ГГ.ХХ ДД.ММ):</label>
+              <input type="text" id="symFieldW" value="09.00 15.09" oninput="updateSymbolBuilder()">
+            </div>
+            <div class="form-field">
+              <label>Поділ AL (Стан боєздатності внизу — Табл. 14 ВКДП):</label>
+              <select id="symReadiness" onchange="updateSymbolBuilder()">
+                <option value="GREEN">Повністю боєздатний (Зелений)</option>
+                <option value="YELLOW">Обмежено боєздатний (Жовтий)</option>
+                <option value="RED">Небоєздатний (Червоний)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="background:#14170f; border:1px solid var(--uaf-olive-border); padding:20px; text-align:center;">
+            <div id="symbolBuilderOutput" style="display:flex; justify-content:center; align-items:center; min-height:190px;"></div>
+            <div style="margin-top:10px; font-size:11.5px; color:var(--uaf-steppe-sand);" id="sidcCodeDisplay"></div>
+            <button class="btn btn-primary" style="margin-top:10px;" onclick="downloadBuiltSymbolSVG()">⬇ Завантажити умовний знак ВКДП у форматі SVG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- МОДАЛЬНЕ ВІКНО ДЕТАЛІЗАЦІЇ -->
+<div class="modal-backdrop" id="detailModal" onclick="if(event.target===this) closeDetailModal()">
+  <div class="modal-content">
+    <div class="panel-header">
+      <div class="panel-title" id="modalTitle">Деталізація</div>
+      <button class="btn" onclick="closeDetailModal()">✕ Закрити</button>
+    </div>
+    <div class="panel-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   1. АВТОНОМНА БАЗА ДАНИХ З ОНОВЛЕНИМИ НАЗВАМИ ОСУВ / ОТУ / АК ЗСУ
+   ============================================================================ */
+
+const HOSTILE_STRATEGIC_GROUPINGS = [
+  {
+    name: 'УВ «Південь»',
+    composition: '3 А, 8 А, 49 А, 51 А, 58 А, 4 А ВПС і ППО, ЧФ, КФл',
+    direction: 'Південно-Східний та Південний (проти ОСУВ «Хортиця» та ОТУ «Запоріжжя»)',
+    personnel: 234500, tanks: 1790, bbm: 6850, artillery: 3230, mlrs: 765, otrk: 84, atgm: 785, airdef: 935, aircraft: 460, helicopters: 260, uav: 1210
+  },
+  {
+    name: 'УВ «Крим»',
+    composition: 'Управління та частини 18 А (ОКП Джанкой), 31 д ППО',
+    direction: 'Кримсько-Таврійський (проти ОСУВ «Таврія» та флангу ОТУ «Запоріжжя»)',
+    personnel: 21500, tanks: 95, bbm: 460, artillery: 160, mlrs: 55, otrk: 12, atgm: 50, airdef: 70, aircraft: 110, helicopters: 40, uav: 190
+  },
+  {
+    name: 'УВ «Захід»',
+    composition: '1 ТА, 20 А, 25 А, 16 А ВПС і ППО',
+    direction: 'Слобожанський та Північно-Східний',
+    personnel: 123000, tanks: 1265, bbm: 3990, artillery: 1810, mlrs: 370, otrk: 60, atgm: 730, airdef: 565, aircraft: 270, helicopters: 205, uav: 820
+  },
+  {
+    name: 'УВ «Об\'єднаної держави»',
+    composition: 'Частини 6 А, ПДВ, ССО «Східних» та ЗС «Північних» (4 мбр, 3 абр)',
+    direction: 'Поліський та Волинський (проти ОСУВ «Північ» та ОТУ «Волинь»)',
+    personnel: 24000, tanks: 465, bbm: 1745, artillery: 775, mlrs: 200, otrk: 24, atgm: 245, airdef: 260, aircraft: 160, helicopters: 55, uav: 220
+  },
+  {
+    name: 'УВ «Центр» (резерв)',
+    composition: '2 А, 41 А, 14 А ВПС і ППО, дивізії ПДВ',
+    direction: 'Стратегічний резерв (у глибині території «Східних»)',
+    personnel: 47000, tanks: 445, bbm: 1415, artillery: 655, mlrs: 185, otrk: 12, atgm: 250, airdef: 210, aircraft: 310, helicopters: 100, uav: 350
+  }
+];
+
+const TOE_CATALOG = [
+  { appNum: 1, code: 'омбр (БМП-2)', category: 'Загальновійськові', personnel: 5347, tanks: 31, bbm: 109, art: 54, airdef: 49, weapons: '31 танк Т-64/Т-72, 98 БМП-2, 12 САУ 2С1, 12 2С3, 12 БМ-21, 18 мінометів, 6 ЗРК Стріла-10, 6 ЗУ-23-2, 37 ПЗРК, 117 БпАК' },
+  { appNum: 2, code: 'омбр (M2 Bradley)', category: 'Загальновійськові', personnel: 5266, tanks: 31, bbm: 111, art: 54, airdef: 43, weapons: '31 танк, 100 БМП M2 Bradley, 12 САУ 2С1, 12 2С3, 12 БМ-21, 6 ЗРК Стріла-10, 37 ПЗРК, 30 ПТРК Javelin, 117 БпАК' },
+  { appNum: 3, code: 'омпбр (БТР-80)', category: 'Загальновійськові', personnel: 5003, tanks: 31, bbm: 170, art: 42, airdef: 39, weapons: '31 танк, 162 БТР-80, 12 САУ 2С1, 12 БМ-21, 18 мінометів 120-мм, 6 ЗУ-23-2, 33 ПЗРК, 106 БпАК' },
+  { appNum: 4, code: 'омпбр (M113)', category: 'Загальновійськові', personnel: 5027, tanks: 31, bbm: 170, art: 42, airdef: 39, weapons: '31 танк, 162 БТР M113, 12 САУ 2С1, 12 БМ-21, 18 мінометів, 30 ПТРК Javelin, 39 засобів ППО, 106 БпАК' },
+  { appNum: 5, code: 'овмбр (M1 Abrams / Marder)', category: 'Загальновійськові', personnel: 5113, tanks: 62, bbm: 110, art: 48, airdef: 43, weapons: '62 танки M1 Abrams (2 тб), 99 БМП Marder (2 мб), 12 САУ PzH-2000, 12 САУ M109, 12 БМ-21, 12 мінометів, 110 БпАК' },
+  { appNum: 6, code: 'овмбр (Т-72 / БМП-2)', category: 'Загальновійськові', personnel: 5191, tanks: 62, bbm: 109, art: 48, airdef: 49, weapons: '62 танки Т-72 (2 тб), 98 БМП-2 (2 мб), 12 САУ 2С1, 12 САУ 2С3, 12 БМ-21, 6 ЗРК Стріла-10, 6 ЗУ-23-2' },
+  { appNum: 7, code: 'оптб (протитанковий батальйон)', category: 'Загальновійськові', personnel: 485, tanks: 0, bbm: 19, art: 0, airdef: 6, weapons: '9 СПТРК Штурм-С, 37 ПТРК (Корсар, Стугна-П, Javelin), 19 БпАК (Leleka, Mavic, Кажан, FPV), 12 НРК (Тарган, Терміт)' },
+  { appNum: 8, code: 'обр МП / одшбр (ВМС / ДШВ)', category: 'Загальновійськові', personnel: 4980, tanks: 31, bbm: 145, art: 42, airdef: 42, weapons: '31 танк Т-80/Т-64, 145 БТР-4/Козак-2/Stryker, 12 САУ 2С1/AS-90, 12 БМ-21, батальйон ударних БпАК' },
+  { appNum: 9, code: '19 орбр (ракетна бригада)', category: 'РВіА', personnel: 1587, tanks: 0, bbm: 8, art: 12, airdef: 27, weapons: '12 ПУ ОТРК («Грім-2» та M142 HIMARS з ATACMS до 300 км), 18 ЗУ-23-2, 9 ПЗРК Игла' },
+  { appNum: 10, code: '27 ореабр (БМ-27 «Буревій»)', category: 'РВіА', personnel: 2046, tanks: 0, bbm: 12, art: 36, airdef: 36, weapons: '36 БМ-27 «Буревій» (220-мм РСЗВ, 4 реадн), 1 РЛС Зоопарк-3, 1 БпАК Фурія, 18 ЗУ-23-2, 18 ПЗРК' },
+  { appNum: 11, code: '107 ореабр (M270 MLRS / «Вільха-М»)', category: 'РВіА', personnel: 1626, tanks: 0, bbm: 8, art: 24, airdef: 27, weapons: '18 ПУ M270 MLRS (3 реадн) + 6 ПУ «Вільха-М» (1 реадн, дальність до 110–130 км), 1 РЛС Зоопарк-3, 1 БпАК Лелека-100' },
+  { appNum: 12, code: '43 оабр (Archer / Caesar / 2С7)', category: 'РВіА', personnel: 1945, tanks: 0, bbm: 2, art: 48, airdef: 36, weapons: '18 САУ Archer (155-мм), 18 САУ Caesar (155-мм), 12 САУ 2С7 «Піон» (203-мм), 1 РЛС Зоопарк-3, 4 БпАК Лелека-100' },
+  { appNum: 13, code: 'оабр ОК (PzH-2000 / Krab / RCH 155)', category: 'РВіА', personnel: 2060, tanks: 0, bbm: 1, art: 72, airdef: 36, weapons: '18 САУ PzH-2000, 18 САУ Krab, 18 САУ RCH 155, 18 гармат 2А36, 1 РЛС AN/TPQ-36, 5 БпАК Лелека-100' },
+  { appNum: 14, code: 'оабр АК (Zuzana-2 / 2П22 «Богдана»)', category: 'РВіА', personnel: 1612, tanks: 0, bbm: 0, art: 54, airdef: 27, weapons: '18 САУ Zuzana-2 (155-мм), 36 САУ 2П22 «Богдана» (155-мм, 2 адн), 1 РЛС AN/TPQ-36, 4 БпАК Лелека-100' },
+  { appNum: 15, code: 'оадн (резерв / посилення)', category: 'РВіА', personnel: 410, tanks: 0, bbm: 0, art: 18, airdef: 6, weapons: '18 САУ 155-мм M109 / Krab, взвод звукометричної та радіолокаційної розвідки' },
+  { appNum: 16, code: '15 обрар (бригада арт. розвідки)', category: 'РВіА', personnel: 1091, tanks: 0, bbm: 0, art: 0, airdef: 8, weapons: '6 РЛС (2 Зоопарк-3, 2 AN/TPQ-53, 2 Cobra), 6 АЗК-7, 13 БпАК (6 Poseidon, 6 Лелека-100, 1 Сокіл-300)' },
+  { appNum: 17, code: 'орвб РВіА (ремонтно-відновлювальний)', category: 'РВіА', personnel: 420, tanks: 0, bbm: 0, art: 0, airdef: 4, weapons: 'Рухомі ремонтні майстерні РАО, евакуаційні тягачі, запас ЗІП для 155-мм САУ та РСЗВ' },
+  { appNum: 18, code: 'зрбр КСВ (IRIS-T / Skyranger 35)', category: 'ППО та РТВ', personnel: 1285, tanks: 0, bbm: 0, art: 0, airdef: 42, weapons: '12 ПУ ЗРК «IRIS-T» (4 зрбат), 12 ЗСУ «Skyranger 35», 18 ПЗРК «Stinger», 4 РЛС TRML-4D, 5 КП ППО' },
+  { appNum: 19, code: 'зрп ОК («HISAR-O» / «Korkut»)', category: 'ППО та РТВ', personnel: 1126, tanks: 0, bbm: 0, art: 0, airdef: 76, weapons: '12 ПУ ЗРК «HISAR-O», 16 ЗСУ «Korkut», 18 ПЗРК «Игла», 30 комплексів БпАК-перехоплювачів, 9 РЛС (П-18МА, Kalkan II)' },
+  { appNum: 20, code: 'зрп АК («HISAR-A» / «Korkut»)', category: 'ППО та РТВ', personnel: 1072, tanks: 0, bbm: 0, art: 0, airdef: 90, weapons: '20 ПУ ЗРК «HISAR-A», 20 ЗСУ «Korkut», 20 ПЗРК «Игла-1», 30 комплексів БпАК-перехоплювачів, 5 РЛС П-18МА' },
+  { appNum: 21, code: 'зенап (Gepard / GDF-007 / Avenger)', category: 'ППО та РТВ', personnel: 896, tanks: 0, bbm: 0, art: 0, airdef: 84, weapons: '18 ЗСУ «Gepard» (35-мм), 18 спарених гармат «GDF-007» з Skyguard, 18 ПУ ЗРК «Avenger», 12 ПЗРК «Stinger», 18 кулеметів Browning' },
+  { appNum: 22, code: 'зрдн ПС (С-300ПТ/ПС / Patriot)', category: 'ППО та РТВ', personnel: 480, tanks: 0, bbm: 0, art: 0, airdef: 12, weapons: '12 ПУ ЗРК середньої/великої дальності у складі УгрПС «Південь», РПН та оглядові РЛС' },
+  { appNum: 23, code: 'ортбр (радіотехнічна бригада ПС)', category: 'ППО та РТВ', personnel: 2491, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '42 РЛС (36Д6, 79К6, П-18 Малахіт, 19Ж6, ПРВ-16), 9 КСА (Оріон, Віраж), 4 станції РЕР Кольчуга' },
+  { appNum: 24, code: 'ортб (радіотехнічний батальйон)', category: 'ППО та РТВ', personnel: 583, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '14 РЛС (36Д6, П-180У, 35Д6М, П-19МА, ПРВ-13), 2 КСА, 1 станція РЕР Кольчуга' },
+  { appNum: 25, code: 'обр АА (бригада армійської авіації)', category: 'Авіація та БпС', personnel: 2281, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '30 вертольотів: 15 ударних Ми-24 (2 вак) та 15 транспортно-бойових Ми-8 (2 вак)' },
+  { appNum: 26, code: 'оп БпС (полк безпілотних систем)', category: 'Авіація та БпС', personnel: 1479, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '214 комплексів БпАК: 18 розвід. (Shark, Сич) + 196 ударних (Ram II, Darts, Punisher, Кажан, FPV) + 49 НРК (Терміт, Тарган, Мороз)' },
+  { appNum: 27, code: 'об БпС (батальйон безпілотних систем)', category: 'Авіація та БпС', personnel: 472, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '81 комплекс БпАК: 9 розвідувальних + 72 ударних (Кажан, Heavy Shot, Darts, FPV) + 16 НРК (Тарган, Терміт, Воля-Е)' },
+  { appNum: 28, code: 'орб АК (розвідувальний батальйон АК)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 528, tanks: 0, bbm: 32, art: 0, airdef: 0, weapons: '13 БРМ-1К, 17 БТР, 24 БпАК (Лелека-100, Магура, Mavic 3), 6 РЛС розвідки, 4 комплекси РЕР (Пластун, Хортиця-М)' },
+  { appNum: 29, code: 'оманЦ РЕР (маневрений центр РЕР)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 591, tanks: 0, bbm: 27, art: 0, airdef: 0, weapons: '27 БТР-80, 3 станції «Кольчуга-КЕ», 30 засобів РЕР УКХ («Пластун-РП-3000», «Вектор-1», «Тінь»), 15 КХ засобів («Джеб», «Ромашка»)' },
+  { appNum: 30, code: 'опз ОК (полк зв\'язку ОК)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 1126, tanks: 0, bbm: 7, art: 0, airdef: 0, weapons: '7 КШМ, 154 термінали Starlink, 37 КХ р/ст Harris, 189 УКХ Motorola, 18 БС мобільного зв\'язку LTE' },
+  { appNum: 31, code: 'обз АК (батальйон зв\'язку АК)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 626, tanks: 0, bbm: 5, art: 0, airdef: 0, weapons: '5 КШМ, 85 терміналів Starlink, 19 КХ р/ст Harris, 96 УКХ Motorola, 6 базових станцій LTE' },
+  { appNum: 32, code: 'обМЗ ОК (батальйон мат. забезпечення ОК)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 1163, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '485 од. автотехніки: 210 бортових авто (2160 т сухих вантажів) та 135 автоцистерн (1950 тис. л пального), польовий хлібозавод' },
+  { appNum: 33, code: 'обМЗ АК (батальйон мат. забезпечення АК)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 707, tanks: 0, bbm: 0, art: 0, airdef: 0, weapons: '306 од. автотехніки: 120 бортових авто (1320 т сухих вантажів) та 60 автоцистерн (900 тис. л пального)' },
+  { appNum: 34, code: 'оіп / оіб (інженерно-саперний полк)', category: 'Розвідка, Зв\'язок, Логістика', personnel: 940, tanks: 0, bbm: 18, art: 0, airdef: 6, weapons: 'ІМР-2, УР-77, гусеничні мінні загороджувачі ГМЗ-3, понтонно-мостовий парк ПМП, загони рухомих загороджень (ЗРЗ)' }
+];
+
+// Пункти управління та з'єднання ЗС України (ОТУ «Запоріжжя», ОСУВ «Хортиця», 9 АК, 10 АК, 11 АК, 30 КМП)
+const SEED_MAP_UNITS = [
+  { id: 'u1', name: 'ОКП ОТУ «Запоріжжя»', shortT: 'ОТУ Зап', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'КП / Управління', symType: 'HQ', echelon: 'XXXX', status: 'PRESENT', hq: 'Запоріжжя', lat: 47.8388, lng: 35.1396, x: 355, y: 235, personnel: 1450, tanks: 0, bbm: 12, art: 0, readiness: 96, notes: 'Основний командний пункт ОТУ «Запоріжжя» (ЗКП — Солоне, ТПУ — Любимівка)' },
+  { id: 'u2', name: '9 АК (ОКП Гуляйполе)', shortT: '9 АК', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXX', status: 'PRESENT', hq: 'Гуляйполе', lat: 47.6603, lng: 36.2581, x: 485, y: 275, personnel: 24800, tanks: 155, bbm: 520, art: 216, readiness: 91, notes: 'Перший ешелон ОТУ «Запоріжжя» на Оріхівсько-Гуляйпільському напрямку (4 омбр/овмбр, оабр 9 АК, зрп 9 АК, орб, об БпС)' },
+  { id: 'u3', name: '10 АК (ОКП Токмак)', shortT: '10 АК', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXX', status: 'PRESENT', hq: 'Токмак', lat: 47.2514, lng: 35.7058, x: 425, y: 345, personnel: 24200, tanks: 155, bbm: 510, art: 210, readiness: 90, notes: '10-й армійський корпус: оборона та підготовка контрнаступальних дій на Токмацько-Бердянському напрямку' },
+  { id: 'u4', name: '30 КМП ВМС (ОКП Мелітополь)', shortT: '30 КМП', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'Механізовані / Танкові', symType: 'MARINE', echelon: 'XXX', status: 'PRESENT', hq: 'Мелітополь', lat: 46.8489, lng: 35.3653, x: 375, y: 420, personnel: 19600, tanks: 93, bbm: 480, art: 168, readiness: 92, notes: '30-й корпус морської піхоти ВМС ЗСУ у складі ОТУ «Запоріжжя» на Приморсько-Мелітопольському напрямку' },
+  { id: 'u5', name: '19 орбр («Грім-2» / HIMARS)', shortT: '19 орбр', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'РВіА', symType: 'MISSILE', echelon: 'X', status: 'PRESENT', hq: 'Вільнянськ', lat: 47.9444, lng: 35.4333, x: 390, y: 205, personnel: 1587, tanks: 0, bbm: 8, art: 12, readiness: 98, notes: 'Ракетна бригада посилення ОТУ: 12 ПУ ОТРК Грім-2 та M142 HIMARS' },
+  { id: 'u6', name: '43 оабр та 107 ореабр', shortT: '43 оабр', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'РВіА', symType: 'ARTY', echelon: 'X', status: 'PRESENT', hq: 'Оріхів', lat: 47.5672, lng: 35.7883, x: 430, y: 280, personnel: 3571, tanks: 0, bbm: 10, art: 72, readiness: 94, notes: 'Артилерійська група посилення ОТУ «Запоріжжя»: 18 Archer, 18 Caesar, 12 2С7, 18 M270 MLRS, 6 Вільха-М' },
+  { id: 'u7', name: '15 обрар (Бригада арт. розвідки)', shortT: '15 обрар', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'БпС / Розвідка / РЕР', symType: 'RECON', echelon: 'X', status: 'PRESENT', hq: 'Пологи', lat: 47.4844, lng: 36.2536, x: 475, y: 315, personnel: 1091, tanks: 0, bbm: 0, art: 0, readiness: 95, notes: '6 РЛС (Зоопарк-3, AN/TPQ-53, Cobra), 6 БпАК Poseidon, 1 Сокіл-300' },
+  { id: 'u8', name: 'УгрПС «Південь» та зрбр КСВ (IRIS-T)', shortT: 'зрбр КСВ', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'ППО / ПС', symType: 'AIRDEF', echelon: 'X', status: 'PRESENT', hq: 'Солоне / Запоріжжя', lat: 48.2000, lng: 34.8700, x: 325, y: 210, personnel: 3776, tanks: 0, bbm: 0, art: 0, readiness: 93, notes: 'Прикриття ОКП та основних угруповань: 12 ПУ IRIS-T, 12 Skyranger 35, зрдн С-300ПТ/ПС, ортбр' },
+  { id: 'u9', name: 'оп БпС та оманЦ РЕР', shortT: 'оп БпС', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'БпС / Розвідка / РЕР', symType: 'UAV', echelon: 'III', status: 'PRESENT', hq: 'Комишуваха', lat: 47.7167, lng: 35.5333, x: 395, y: 255, personnel: 2070, tanks: 0, bbm: 27, art: 0, readiness: 96, notes: '214 комплексів БпАК (Shark, Сич, Ram II, Кажан), 49 НРК, 3 станції Кольчуга-КЕ' },
+  { id: 'u10', name: 'обМЗ ОК та опз ОК', shortT: 'обМЗ ОК', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'Забезпечення', symType: 'LOG', echelon: 'III', status: 'PRESENT', hq: 'Любимівка (ТПУ)', lat: 48.3700, lng: 35.1800, x: 330, y: 175, personnel: 2289, tanks: 0, bbm: 7, art: 0, readiness: 97, notes: 'Тиловий пункт управління та логістика: підвіз 2160 т сухих вантажів і 1950 тис. л пального' },
+  { id: 'u11', name: 'ОТУ «Донецьк» та 11 АК', shortT: '11 АК', side: 'FRIENDLY', Grouping: 'ОСУВ «Хортиця»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXXX', status: 'PRESENT', hq: 'Покровськ / Краматорськ', lat: 48.2820, lng: 37.1820, x: 610, y: 165, personnel: 48500, tanks: 210, bbm: 740, art: 340, readiness: 77, notes: 'Сили ОСУВ «Хортиця» (ОТУ «Донецьк» та 11 АК) ведуть стабілізаційну операцію на рубежі ізоляції Волноваха—Мар\'їнка—Селидове—Покровськ—Торецьк. Втрати 20–25%' },
+  { id: 'u12', name: 'Резерв ОТУ (5 овмбр Abrams/Marder)', shortT: '5 овмбр', side: 'FRIENDLY', Grouping: 'ОТУ «Запоріжжя»', branch: 'Механізовані / Танкові', symType: 'TANK', echelon: 'X', status: 'PLANNED', hq: 'Василівка (маршрут)', lat: 47.4369, lng: 35.2742, x: 365, y: 310, personnel: 5113, tanks: 62, bbm: 110, art: 48, readiness: 98, notes: 'Запланований район зосередження важкої механізованої бригади (62 танки M1 Abrams, 99 БМП Marder, 12 PzH-2000)' },
+
+  { id: 'h1', name: 'КП УВ «Південь» (ЗС «Східних»)', shortT: 'УВ Пд', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'КП / Управління', symType: 'HQ', echelon: 'XXXX', status: 'PRESENT', hq: 'Ростов-на-Дону', lat: 47.2357, lng: 39.7015, x: 895, y: 340, personnel: 2200, tanks: 0, bbm: 25, art: 0, readiness: 95, notes: 'Командний пункт стратегічного угруповання «Південь» (3, 8, 49, 51, 58 А, 4 А ВПС і ППО)' },
+  { id: 'h2', name: '8 А (КП Іловайськ)', shortT: '8 А', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXX', status: 'PRESENT', hq: 'Іловайськ', lat: 47.9258, lng: 38.1953, x: 745, y: 245, personnel: 42000, tanks: 340, bbm: 1180, art: 580, readiness: 70, notes: '20 та 150 мсд. Після боїв у Донецькому ОР загальні втрати склали 25–30%, у 150 мсд — до 40–45%' },
+  { id: 'h3', name: '51 А (КП Донецьк)', shortT: '51 А', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXX', status: 'PRESENT', hq: 'Донецьк', lat: 48.0159, lng: 37.8028, x: 685, y: 210, personnel: 46500, tanks: 310, bbm: 1290, art: 640, readiness: 68, notes: '1, 5, 9, 110, 114, 132 омсбр. Втрати у стабілізаційній операції 25–30%, окремі омсбр — до 42%' },
+  { id: 'h4', name: '49 А (Другий ешелон / Резерв)', shortT: '49 А', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXX', status: 'PLANNED', hq: 'Волноваха / Маріуполь', lat: 47.5975, lng: 37.4997, x: 655, y: 335, personnel: 38000, tanks: 290, bbm: 1120, art: 520, readiness: 94, notes: 'Висування на рубіж переходу в наступ на Маріупольсько-Бердянському та Волноваському напрямках' },
+  { id: 'h5', name: '58 А (Ударне угруповання)', shortT: '58 А', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'Механізовані / Танкові', symType: 'TANK', echelon: 'XXX', status: 'PLANNED', hq: 'Бердянськ / Більмак', lat: 47.1500, lng: 36.6500, x: 565, y: 385, personnel: 44000, tanks: 380, bbm: 1350, art: 610, readiness: 95, notes: 'Готується до введення у бій для нарощування зусиль у напрямку Токмак — Запоріжжя' },
+  { id: 'h6', name: 'Ракетні бригади УВ «Південь» (Іскандер-М)', shortT: 'рбр Іск', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'РВіА', symType: 'MISSILE', echelon: 'X', status: 'PRESENT', hq: 'Таганрог / Амвросіївка', lat: 47.4500, lng: 38.6500, x: 810, y: 315, personnel: 3200, tanks: 0, bbm: 20, art: 84, readiness: 92, notes: 'До 84 ПУ ОТРК «Іскандер-М» у складі УВ «Південь»' },
+  { id: 'h7', name: '4 А ВПС і ППО «Східних»', shortT: '4 А ВПС', side: 'HOSTILE', Grouping: 'УВ «Південь»', branch: 'ППО / ПС', symType: 'AIRDEF', echelon: 'XXX', status: 'PRESENT', hq: 'Єйськ / Міллерово', lat: 46.7111, lng: 38.2733, x: 835, y: 430, personnel: 14500, tanks: 0, bbm: 0, art: 0, readiness: 91, notes: 'До 460 літаків та 260 вертольотів, дивізіони С-400/С-300В4. Чергування А-50У та 4–6 Су-30СМ/Су-35С' },
+  { id: 'h8', name: 'УВ «Крим» (18 А, КП Джанкой)', shortT: '18 А', side: 'HOSTILE', Grouping: 'УВ «Крим»', branch: 'Механізовані / Танкові', symType: 'MECH', echelon: 'XXX', status: 'PRESENT', hq: 'Джанкой / Чонгар', lat: 45.7086, lng: 34.3933, x: 305, y: 555, personnel: 21500, tanks: 95, bbm: 460, art: 215, readiness: 93, notes: 'Створено на базі 18 А (ОКП Джанкой): 21,5 тис. о/с, 95 танків, 460 ББМ, 160 гармат, 55 РСЗВ, 12 ПУ ОТРК' }
+];
+
+const SEED_JOURNAL = [
+  { time: '08.00 12.03.2026', sector: 'ОТУ «Донецьк» / 11 АК', side: 'HOSTILE', impact: 'Розгортання / Перегрупування', text: 'Противник силами 8 А (Іловайськ) та 51 А (Донецьк) після сфабрикованих провокацій перейшов у наступ у Донецькому та Луганському операційних районах.' },
+  { time: '14.00 28.08.2026', sector: 'ОСУВ «Хортиця»', side: 'FRIENDLY', impact: 'Вогневе ураження / РВіА', text: 'Війська ОТУ «Донецьк» та 11 АК завдали вогневого ураження передовим дивізіям 8 А та бригадам 51 А (втрати противника склали 25–30%, у 150 мсд та 1, 9, 114, 132 омсбр — до 40–45%) та організовано зайняли рубіж ізоляції Приморське—Волноваха—Мар\'їнка—Покровськ—Золоте.' },
+  { time: '18.00 10.09.2026', sector: 'ТВД загалом', side: 'FRIENDLY', impact: 'Розгортання / Перегрупування', text: 'Введено воєнний стан у прикордонних областях. Розпочато оперативне розгортання ОСУВ «Таврія», «Хортиця», «Північ», ОТУ «Волинь» та ОТУ «Запоріжжя».' },
+  { time: '06.00 15.09.2026', sector: 'ОТУ «Запоріжжя» (Запоріжжя)', side: 'FRIENDLY', impact: 'Розгортання / Перегрупування', text: 'Управління ОТУ «Запоріжжя» розгорнуло ОКП у Запоріжжі (ЗКП — Солоне, ТПУ — Любимівка). 9 АК (Гуляйполе), 10 АК (Токмак) та 30 КМП ВМС (Мелітополь) зайняли визначені смуги оборони.' },
+  { time: '07.30 15.09.2026', sector: 'Повітряний простір / Азовська ОЗ', side: 'HOSTILE', impact: 'ППО / Повітряна обстановка', text: 'За даними ортбр УгрПС «Південь», у повітряному просторі вздовж кордону та над акваторією Азовського моря постійно чергують літак ДРЛВ А-50У та 4–6 винищувачів Су-30СМ/Су-35С зі складу 4 А ВПС і ППО.' },
+  { time: '09.00 15.09.2026', sector: '9 АК / 10 АК (Пологи—Токмак)', side: 'FRIENDLY', impact: 'Розвідка / ДРГ', text: 'Засобами 15 обрар (БпАК Poseidon, РЛС Зоопарк-3) та оманЦ РЕР («Кольчуга-КЕ») виявлено висування частин 49 А та 58 А зі складу другого ешелону УВ «Південь» для нарощування удару.' }
+];
+
+/* ============================================================================
+   2. СТАН ЗАСТОСУНКУ ТА ІНІЦІАЛІЗАЦІЯ OPENSTREETMAP
+   ============================================================================ */
+let appState = {
+  mapUnits: [],
+  journal: [],
+  filters: {
+    side: 'ALL',
+    Grouping: 'ALL',
+    branch: 'ALL',
+    status: 'ALL',
+    search: ''
+  },
+  mapMode: 'OSM',
+  leafletMap: null,
+  leafletLayerGroup: null,
+  mapSort: { key: 'personnel', asc: false },
+  toeSort: { key: 'appNum', asc: true },
+  mapTransform: { scale: 1, tx: 0, ty: 0 },
+  showPlannedLayer: true,
+  selectedUnitId: null
+};
+
+function initApp() {
+  try {
+    const savedUnits = localStorage.getItem('tavria_map_units_v4');
+    const savedJournal = localStorage.getItem('tavria_journal_v4');
+    appState.mapUnits = savedUnits ? JSON.parse(savedUnits) : JSON.parse(JSON.stringify(SEED_MAP_UNITS));
+    appState.journal = savedJournal ? JSON.parse(savedJournal) : JSON.parse(JSON.stringify(SEED_JOURNAL));
+  } catch (e) {
+    appState.mapUnits = JSON.parse(JSON.stringify(SEED_MAP_UNITS));
+    appState.journal = JSON.parse(JSON.stringify(SEED_JOURNAL));
+  }
+
+  initOpenStreetMap();
+  setupSvgMapInteractions();
+  applyGlobalFilters();
+  renderHostileStrategicTable();
+  renderLossesSection();
+  runForceSimulation();
+  renderArtilleryTab();
+  renderAirTab();
+  renderToeTable();
+  renderJournalTable();
+  renderMilitaryDocument();
+  updateSymbolBuilder();
+}
+
+function initOpenStreetMap() {
+  if (typeof L === 'undefined') {
+    setMapMode('SVG');
+    return;
+  }
+  try {
+    appState.leafletMap = L.map('osmMapCanvas', {
+      center: [49.289, 30.476],
+      zoom: 7,
+      zoomControl: true
+    });
+
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+    });
+
+    tileLayer.on('tileerror', function() {
+      document.getElementById('autonomyBadge').textContent = '● OFFLINE РЕЖИМ (ДОСТУПНА ВЕКТОРНА СХЕМА)';
+    });
+
+    tileLayer.addTo(appState.leafletMap);
+    appState.leafletLayerGroup = L.layerGroup().addTo(appState.leafletMap);
+  } catch (err) {
+    setMapMode('SVG');
+  }
+}
+
+function setMapMode(mode) {
+  appState.mapMode = mode;
+  const osmDiv = document.getElementById('osmMapCanvas');
+  const svgEl = document.getElementById('tacticalMapSvg');
+  const btnOsm = document.getElementById('btnModeOsm');
+  const btnSvg = document.getElementById('btnModeSvg');
+
+  if (mode === 'OSM' && appState.leafletMap) {
+    osmDiv.style.display = 'block';
+    svgEl.style.display = 'none';
+    btnOsm.classList.add('btn-primary');
+    btnSvg.classList.remove('btn-primary');
+    appState.leafletMap.invalidateSize();
+    appState.leafletMap.setView([49.289, 30.476], 7);
+  } else {
+    osmDiv.style.display = 'none';
+    svgEl.style.display = 'block';
+    btnSvg.classList.add('btn-primary');
+    btnOsm.classList.remove('btn-primary');
+  }
+  renderTacticalMap(getFilteredMapUnits());
+}
+
+function focusMapSector() {
+  if (appState.mapMode !== 'OSM' || !appState.leafletMap) {
+    setMapMode('OSM');
+  }
+  if (appState.leafletMap) {
+    appState.leafletMap.flyTo([47.55, 36.35], 8, { duration: 0.8 });
+  }
+}
+
+function saveStateToStorage() {
+  try {
+    localStorage.setItem('tavria_map_units_v4', JSON.stringify(appState.mapUnits));
+    localStorage.setItem('tavria_journal_v4', JSON.stringify(appState.journal));
+  } catch (e) {}
+}
+
+function resetAllDataToSeed() {
+  try {
+    localStorage.removeItem('tavria_map_units_v4');
+    localStorage.removeItem('tavria_journal_v4');
+  } catch (e) {}
+  appState.mapUnits = JSON.parse(JSON.stringify(SEED_MAP_UNITS));
+  appState.journal = JSON.parse(JSON.stringify(SEED_JOURNAL));
+  resetGlobalFilters();
+  renderJournalTable();
+  renderMilitaryDocument();
+}
+
+/* ============================================================================
+   3. ГЕНЕРАТОР УМОВНИХ ЗНАКІВ НАТО APP-6 СТРОГО ЗА ВКДП 5(3)-00(01).02 (РОЗД. 5-6)
+   Побудова на основі віртуального восьмикутника (центр X=100, Y=70)
+   ============================================================================ */
+function generateNatoSymbolSVG(opts) {
+  const {
+    side = 'FRIENDLY',
+    status = 'PRESENT',
+    symType = 'MECH',
+    echelon = 'X',
+    fieldT = '',
+    fieldM = '',
+    fieldW = '',
+    readiness = 'GREEN',
+    showOctagonGrid = false,
+    size = 120
+  } = opts;
+
+  const isPlanned = status === 'PLANNED';
+  const dashAttr = isPlanned ? 'stroke-dasharray="6,4"' : '';
+  let fillColor = 'rgba(37, 99, 235, 0.78)';
+  let strokeColor = '#93c5fd';
+  let frameShape = '';
+
+  // Геометрія рамок приналежності за Таблицею 5 ВКДП 5(3)-00(01).02 (Центр = 100, 70)
+  if (side === 'FRIENDLY') {
+    // Свої війська: прямокутник 96x64 (X: 52..148, Y: 38..102)
+    fillColor = 'rgba(29, 78, 216, 0.84)';
+    strokeColor = '#93c5fd';
+    frameShape = '<rect x="52" y="38" width="96" height="64" fill="' + fillColor + '" stroke="' + strokeColor + '" stroke-width="2.8" ' + dashAttr + '/>';
+  } else if (side === 'HOSTILE') {
+    // Противник: ромб навколо віртуального восьмикутника (вершини: 100,22 | 148,70 | 100,118 | 52,70)
+    fillColor = 'rgba(185, 28, 28, 0.84)';
+    strokeColor = '#fca5a5';
+    frameShape = '<polygon points="100,22 148,70 100,118 52,70" fill="' + fillColor + '" stroke="' + strokeColor + '" stroke-width="2.8" ' + dashAttr + '/>';
+  } else {
+    // Нейтральні: квадрат 76x76 (X: 62..138, Y: 32..108)
+    fillColor = 'rgba(22, 163, 74, 0.84)';
+    strokeColor = '#86efac';
+    frameShape = '<rect x="62" y="32" width="76" height="76" fill="' + fillColor + '" stroke="' + strokeColor + '" stroke-width="2.8" ' + dashAttr + '/>';
+  }
+
+  // Віртуальний восьмикутник (показується у конструкторі знаків для верифікації ВКДП п. 5.3.2)
+  const octagonGrid = showOctagonGrid
+    ? '<polygon points="82,42 118,42 138,58 138,82 118,98 82,98 62,82 62,58" fill="none" stroke="rgba(212,175,55,0.45)" stroke-width="1" stroke-dasharray="3,2"/>'
+    : '';
+
+  // Флагшток пункту управління (Поділ S — Таблиця 13 ВКДП: вертикальна лінія з лівого нижнього кута рамки або лівого кута ромба)
+  let hqStaff = '';
+  if (symType === 'HQ') {
+    const staffX = 52;
+    const staffTop = side === 'HOSTILE' ? 70 : 102;
+    hqStaff = '<line x1="' + staffX + '" y1="' + staffTop + '" x2="' + staffX + '" y2="136" stroke="#facc15" stroke-width="3.4"/>';
+  }
+
+  // Точні точки дотику для знаків, що торкаються внутрішніх меж рамки (п. 5.3.2 ВКДП)
+  // Для прямокутника (FRIENDLY): кути (52,38)-(148,102). Для ромба (HOSTILE): точки на ребрах ромба (76,46)-(124,94)
+  const dX1 = side === 'HOSTILE' ? 76 : (side === 'NEUTRAL' ? 62 : 52);
+  const dY1 = side === 'HOSTILE' ? 46 : (side === 'NEUTRAL' ? 32 : 38);
+  const dX2 = side === 'HOSTILE' ? 124 : (side === 'NEUTRAL' ? 138 : 148);
+  const dY2 = side === 'HOSTILE' ? 94 : (side === 'NEUTRAL' ? 108 : 102);
+
+  // Основний знак роду військ (Таблиця 15 ВКДП 5(3)-00(01).02)
+  let innerIcon = '';
+  if (symType === 'MECH') {
+    // Механізовані війська: косий хрест піхоти (торкається рамки) + овал броні всередині восьмикутника
+    innerIcon = '<line x1="' + dX1 + '" y1="' + dY1 + '" x2="' + dX2 + '" y2="' + dY2 + '" stroke="#ffffff" stroke-width="2.3"/>' +
+                '<line x1="' + dX2 + '" y1="' + dY1 + '" x2="' + dX1 + '" y2="' + dY2 + '" stroke="#ffffff" stroke-width="2.3"/>' +
+                '<rect x="72" y="56" width="56" height="28" rx="14" fill="none" stroke="#ffffff" stroke-width="2.6"/>';
+  } else if (symType === 'TANK') {
+    // Танкові війська: овал гусениць строго в межах віртуального восьмикутника (не торкається рамки)
+    innerIcon = '<rect x="68" y="54" width="64" height="32" rx="16" fill="none" stroke="#ffffff" stroke-width="2.8"/>';
+  } else if (symType === 'MARINE') {
+    // Морська піхота ВМС: косий хрест піхоти + якір у центральній зоні
+    innerIcon = '<line x1="' + dX1 + '" y1="' + dY1 + '" x2="' + dX2 + '" y2="' + dY2 + '" stroke="#ffffff" stroke-width="2.2"/>' +
+                '<line x1="' + dX2 + '" y1="' + dY1 + '" x2="' + dX1 + '" y2="' + dY2 + '" stroke="#ffffff" stroke-width="2.2"/>' +
+                '<circle cx="100" cy="52" r="3.5" fill="none" stroke="#fde047" stroke-width="2.2"/>' +
+                '<line x1="100" y1="56" x2="100" y2="86" stroke="#fde047" stroke-width="2.6"/>' +
+                '<line x1="91" y1="63" x2="109" y2="63" stroke="#fde047" stroke-width="2.2"/>' +
+                '<path d="M86,76 Q100,91 114,76" fill="none" stroke="#fde047" stroke-width="2.6"/>';
+  } else if (symType === 'ARTY') {
+    // Артилерія: зафарбований круг у центрі восьмикутника (Табл. 15 ВКДП)
+    innerIcon = '<circle cx="100" cy="70" r="11.5" fill="#ffffff"/>';
+  } else if (symType === 'MISSILE') {
+    // Ракетні війська: вертикальний силует ракети з подвійним шевроном у межах восьмикутника (Табл. 15 ВКДП)
+    innerIcon = '<line x1="100" y1="46" x2="100" y2="92" stroke="#ffffff" stroke-width="2.6"/>' +
+                '<polyline points="88,58 100,45 112,58" fill="none" stroke="#ffffff" stroke-width="2.5"/>' +
+                '<polyline points="90,67 100,56 110,67" fill="none" stroke="#ffffff" stroke-width="2.3"/>' +
+                '<line x1="92" y1="92" x2="108" y2="92" stroke="#ffffff" stroke-width="2.4"/>';
+  } else if (symType === 'AIRDEF') {
+    // ППО: купол захисного прикриття від нижніх кутів рамки (п. 5.3.2 ВКДП — торкається рамки)
+    const adLeftX = side === 'HOSTILE' ? 76 : (side === 'NEUTRAL' ? 62 : 52);
+    const adRightX = side === 'HOSTILE' ? 124 : (side === 'NEUTRAL' ? 138 : 148);
+    const adBottomY = side === 'HOSTILE' ? 94 : (side === 'NEUTRAL' ? 108 : 102);
+    innerIcon = '<path d="M' + adLeftX + ',' + adBottomY + ' Q100,52 ' + adRightX + ',' + adBottomY + '" fill="none" stroke="#ffffff" stroke-width="2.6"/>' +
+                '<text x="100" y="68" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="11" font-weight="bold">ППО</text>';
+  } else if (symType === 'UAV') {
+    // Безпілотні авіаційні комплекси (Табл. 15 ВКДП — силует крила БпАК у центрі)
+    innerIcon = '<polygon points="70,63 100,79 130,63 100,70" fill="#ffffff" stroke="#ffffff" stroke-width="1.6"/>' +
+                '<text x="100" y="55" text-anchor="middle" fill="#fde047" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold">БпС</text>';
+  } else if (symType === 'RECON') {
+    // Розвідувальні війська: одна діагональна лінія з лівого нижнього до правого верхнього кута рамки (Табл. 15 ВКДП)
+    innerIcon = '<line x1="' + dX1 + '" y1="' + dY2 + '" x2="' + dX2 + '" y2="' + dY1 + '" stroke="#ffffff" stroke-width="2.6"/>';
+  } else if (symType === 'SIGNAL') {
+    // Війська зв'язку: блискавка з верхнього лівого до правого нижнього кута рамки (Табл. 15 ВКДП)
+    innerIcon = '<polyline points="' + dX1 + ',' + dY1 + ' 104,70 96,70 ' + dX2 + ',' + dY2 + '" fill="none" stroke="#ffffff" stroke-width="2.6"/>';
+  } else if (symType === 'LOG') {
+    // Матеріальне забезпечення: горизонтальна лінія у нижній частині рамки + «МЗ»
+    const logLeft = side === 'HOSTILE' ? 72 : 52;
+    const logRight = side === 'HOSTILE' ? 128 : 148;
+    innerIcon = '<line x1="' + logLeft + '" y1="86" x2="' + logRight + '" y2="86" stroke="#ffffff" stroke-width="2.4"/>' +
+                '<text x="100" y="71" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="12.5" font-weight="bold">МЗ</text>';
+  } else if (symType === 'HQ') {
+    // Штаб / Пункт управління: лінія штабу зверху та абревіатура ОКП (Табл. 13 ВКДП)
+    const hqLeft = side === 'HOSTILE' ? 72 : 52;
+    const hqRight = side === 'HOSTILE' ? 128 : 148;
+    innerIcon = '<line x1="' + hqLeft + '" y1="52" x2="' + hqRight + '" y2="52" stroke="#fde047" stroke-width="2.2"/>' +
+                '<text x="100" y="76" text-anchor="middle" fill="#fde047" font-family="Arial, sans-serif" font-size="14" font-weight="bold">ОКП</text>';
+  }
+
+  // Стан боєздатності (Поділ AL — Таблиця 14 ВКДП 5(3)-00(01).02)
+  let readinessColor = '#22c55e';
+  if (readiness === 'YELLOW') readinessColor = '#eab308';
+  if (readiness === 'RED') readinessColor = '#ef4444';
+  const barY = side === 'HOSTILE' ? 121 : (side === 'NEUTRAL' ? 111 : 105);
+  const readinessBar = '<rect x="68" y="' + barY + '" width="64" height="6" fill="' + readinessColor + '" stroke="#000000" stroke-width="1.2"/>';
+
+  // Позиції текстових ампліфікаторів за Рис. 15–16 ВКДП 5(3)-00(01).02
+  const echY = side === 'HOSTILE' ? 17 : (side === 'NEUTRAL' ? 27 : 33);
+
+  return '<svg width="' + size + '" height="' + Math.round(size * 0.75) + '" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">' +
+    hqStaff + frameShape + octagonGrid + innerIcon + readinessBar +
+    '<!-- Поділ E: Покажчик величини формування -->' +
+    '<text x="100" y="' + echY + '" text-anchor="middle" fill="#ffffff" style="paint-order:stroke; stroke:#000; stroke-width:3.2px;" font-family="Arial, sans-serif" font-size="14" font-weight="bold">' + echelon + '</text>' +
+    '<!-- Поділ T: Унікальне позначення (ліворуч) -->' +
+    '<text x="46" y="74" text-anchor="end" fill="#ffffff" style="paint-order:stroke; stroke:#000; stroke-width:3.2px;" font-family="Arial, sans-serif" font-size="11.5" font-weight="bold">' + fieldT + '</text>' +
+    '<!-- Поділ M: Вище формування (праворуч) -->' +
+    '<text x="154" y="74" text-anchor="start" fill="#fde047" style="paint-order:stroke; stroke:#000; stroke-width:3.2px;" font-family="Arial, sans-serif" font-size="11" font-weight="bold">' + fieldM + '</text>' +
+    '<!-- Поділ W: Час оперативний (ліворуч зверху) -->' +
+    '<text x="46" y="48" text-anchor="end" fill="#cbd5e1" style="paint-order:stroke; stroke:#000; stroke-width:2.5px;" font-family="Arial, sans-serif" font-size="9.5">' + fieldW + '</text>' +
+    '</svg>';
+}
+
+/* ============================================================================
+   4. РОЗУМНА ФІЛЬТРАЦІЯ ТА ОНОВЛЕННЯ KPI
+   ============================================================================ */
+function onSideFilterChange() {
+  const side = document.getElementById('fltSide').value;
+  const grpSelect = document.getElementById('fltGrouping');
+  const currentGrp = grpSelect.value;
+
+  if (side === 'FRIENDLY' && (currentGrp === 'УВ «Південь»' || currentGrp === 'УВ «Крим»')) {
+    grpSelect.value = 'ALL';
+  } else if (side === 'HOSTILE' && (currentGrp === 'ОТУ «Запоріжжя»' || currentGrp === 'ОСУВ «Хортиця»')) {
+    grpSelect.value = 'ALL';
+  }
+  applyGlobalFilters();
+}
+
+function getFilteredMapUnits() {
+  const { side, Grouping, branch, status, search } = appState.filters;
+  const q = search.trim().toLowerCase();
+
+  return appState.mapUnits.filter(u => {
+    if (side !== 'ALL' && u.side !== side) return false;
+    if (Grouping !== 'ALL' && u.Grouping !== Grouping) return false;
+    if (branch !== 'ALL' && u.branch !== branch) return false;
+    if (status !== 'ALL' && u.status !== status) return false;
+    if (q) {
+      const hay = (u.name + ' ' + u.hq + ' ' + u.Grouping + ' ' + u.branch + ' ' + u.notes).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function applyGlobalFilters() {
+  appState.filters.side = document.getElementById('fltSide').value;
+  appState.filters.Grouping = document.getElementById('fltGrouping').value;
+  appState.filters.branch = document.getElementById('fltBranch').value;
+  appState.filters.status = document.getElementById('fltStatus').value;
+  appState.filters.search = document.getElementById('fltSearch').value;
+
+  renderActiveFilterTags();
+  const filtered = getFilteredMapUnits();
+  renderKPIs(filtered);
+  renderTacticalMap(filtered);
+  renderMapUnitsTable(filtered);
+  renderOverviewForceChart(filtered);
+}
+
+function resetGlobalFilters() {
+  document.getElementById('fltSide').value = 'ALL';
+  document.getElementById('fltGrouping').value = 'ALL';
+  document.getElementById('fltBranch').value = 'ALL';
+  document.getElementById('fltStatus').value = 'ALL';
+  document.getElementById('fltSearch').value = '';
+  applyGlobalFilters();
+}
+
+function renderActiveFilterTags() {
+  const container = document.getElementById('activeFilterTags');
+  const tags = [];
+  const f = appState.filters;
+  if (f.side !== 'ALL') tags.push('Сторона: ' + (f.side === 'FRIENDLY' ? 'Свої війська' : 'Противник'));
+  if (f.Grouping !== 'ALL') tags.push('УВ: ' + f.Grouping);
+  if (f.branch !== 'ALL') tags.push('Рід військ: ' + f.branch);
+  if (f.status !== 'ALL') tags.push('Статус: ' + f.status);
+  if (f.search) tags.push('Пошук: "' + f.search + '"');
+
+  container.innerHTML = tags.map(t => '<span class="filter-tag">' + t + '</span>').join('');
+}
+
+function renderKPIs(units) {
+  const friendly = units.filter(u => u.side === 'FRIENDLY');
+  const hostile = units.filter(u => u.side === 'HOSTILE');
+
+  const fPers = friendly.reduce((s, u) => s + u.personnel, 0);
+  const hPers = hostile.reduce((s, u) => s + u.personnel, 0);
+  const fTanks = friendly.reduce((s, u) => s + u.tanks, 0);
+  const hTanks = hostile.reduce((s, u) => s + u.tanks, 0);
+  const fArt = friendly.reduce((s, u) => s + u.art, 0);
+  const hArt = hostile.reduce((s, u) => s + u.art, 0);
+
+  const avgFriendlyReadiness = friendly.length
+    ? Math.round(friendly.reduce((s, u) => s + u.readiness, 0) / friendly.length)
+    : 0;
+
+  const persRatio = fPers > 0 ? (hPers / fPers).toFixed(2) : '—';
+
+  const kpis = [
+    {
+      title: 'Свої війська у вибірці (ЗС України)',
+      val: fPers.toLocaleString('uk-UA') + ' о/с',
+      sub: 'Формувань: ' + friendly.length + ' | Танків: ' + fTanks,
+      delta: 'Боєздатність: ' + avgFriendlyReadiness + '%',
+      deltaClass: 'delta-pos',
+      cardClass: '',
+      onClick: function() { showKpiModal('friendly'); }
+    },
+    {
+      title: 'Сили противника у вибірці («Східні»)',
+      val: hPers.toLocaleString('uk-UA') + ' о/с',
+      sub: 'Формувань: ' + hostile.length + ' | Танків: ' + hTanks,
+      delta: 'Заг. на ТВД: 450,0 тис.',
+      deltaClass: 'delta-neg',
+      cardClass: 'hostile',
+      onClick: function() { showKpiModal('hostile'); }
+    },
+    {
+      title: 'Співвідношення сил (О/С у смузі)',
+      val: '1 : ' + persRatio,
+      sub: 'Свої : Противник (на 09.00 15.09)',
+      delta: hPers > fPers ? 'Перевага противника' : 'Паритет / Перевага своїх',
+      deltaClass: hPers > fPers ? 'delta-warn' : 'delta-pos',
+      cardClass: 'warning',
+      onClick: function() { switchTab('tab-forces', document.querySelectorAll('.nav-tab')[1]); }
+    },
+    {
+      title: 'Засоби РВіА та ОТРК (Свої vs Прот.)',
+      val: fArt + ' / ' + hArt + ' од.',
+      sub: 'У т.ч. 12 ПУ Грім-2/HIMARS vs 84 Іскандер',
+      delta: 'Дальність до 300 км',
+      deltaClass: 'delta-pos',
+      cardClass: 'crimson',
+      onClick: function() { switchTab('tab-artillery', document.querySelectorAll('.nav-tab')[2]); }
+    },
+    {
+      title: 'Втрати 8 А та 51 А противника',
+      val: '25–30%',
+      sub: '150 мсд, 1, 9, 114, 132 омсбр: 40–45%',
+      delta: 'Зірвано темп наступу',
+      deltaClass: 'delta-pos',
+      cardClass: 'neutral',
+      onClick: function() { switchTab('tab-forces', document.querySelectorAll('.nav-tab')[1]); }
+    },
+    {
+      title: 'Довідкова база штатних нормативів',
+      val: '34 штати',
+      sub: 'Бригади, полки, дивізіони, МЗ, РЕР',
+      delta: 'Верифіковано',
+      deltaClass: 'delta-pos',
+      cardClass: 'warning',
+      onClick: function() { switchTab('tab-toe', document.querySelectorAll('.nav-tab')[4]); }
+    }
+  ];
+
+  const container = document.getElementById('kpiContainer');
+  container.innerHTML = kpis.map((k, idx) =>
+    '<div class="kpi-card ' + k.cardClass + '" onclick="triggerKpiAction(' + idx + ')">' +
+      '<div class="kpi-header"><span>' + k.title + '</span><span>↗</span></div>' +
+      '<div class="kpi-val">' + k.val + '</div>' +
+      '<div class="kpi-sub"><span>' + k.sub + '</span><span class="' + k.deltaClass + '">' + k.delta + '</span></div>' +
+    '</div>'
+  ).join('');
+
+  window._kpiActions = kpis.map(k => k.onClick);
+}
+
+function triggerKpiAction(idx) {
+  if (window._kpiActions && window._kpiActions[idx]) window._kpiActions[idx]();
+}
+
+function showKpiModal(type) {
+  const units = appState.mapUnits.filter(u => type === 'friendly' ? u.side === 'FRIENDLY' : u.side === 'HOSTILE');
+  const title = type === 'friendly'
+    ? 'Деталізація угруповання своїх військ (ОТУ «Запоріжжя» та ОСУВ «Хортиця»)'
+    : 'Деталізація угруповання військ противника (УВ «Південь» та УВ «Крим»)';
+
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML =
+    '<div class="table-wrap"><table class="data-table"><thead><tr>' +
+      '<th>Формування (Поділ T)</th><th>Вище формування (Поділ M)</th><th>ОКП / Дислокація</th>' +
+      '<th class="num-col">О/С</th><th class="num-col">Танки</th><th class="num-col">ББМ</th><th class="num-col">Арт./ОТРК</th><th>Оперативна характеристика</th>' +
+    '</tr></thead><tbody>' +
+    units.map(u =>
+      '<tr>' +
+        '<td><strong>' + u.name + '</strong></td>' +
+        '<td>' + u.Grouping + '</td>' +
+        '<td>' + u.hq + '</td>' +
+        '<td class="num-col">' + u.personnel.toLocaleString('uk-UA') + '</td>' +
+        '<td class="num-col">' + u.tanks + '</td>' +
+        '<td class="num-col">' + u.bbm + '</td>' +
+        '<td class="num-col">' + u.art + '</td>' +
+        '<td>' + u.notes + '</td>' +
+      '</tr>'
+    ).join('') +
+    '</tbody></table></div>';
+  document.getElementById('detailModal').style.display = 'flex';
+}
+
+function closeDetailModal() {
+  document.getElementById('detailModal').style.display = 'none';
+}
+
+/* ============================================================================
+   5. ВІДОБРАЖЕННЯ НА OPENSTREETMAP ТА РЕЗЕРВНІЙ ВЕКТОРНІЙ КАРТІ
+   ============================================================================ */
+function renderTacticalMap(units) {
+  if (appState.mapMode === 'OSM' && appState.leafletMap && appState.leafletLayerGroup) {
+    renderOsmTacticalLayers(units);
+  }
+  renderSvgFallbackMap(units);
+}
+
+function renderOsmTacticalLayers(units) {
+  const group = appState.leafletLayerGroup;
+  group.clearLayers();
+
+  const isolationLineCoords = [
+    [47.550, 35.330],
+    [47.460, 36.250],
+    [47.597, 37.499],
+    [47.942, 37.504],
+    [48.150, 37.303],
+    [48.282, 37.182],
+    [48.398, 37.855],
+    [48.693, 38.519]
+  ];
+
+  L.polyline(isolationLineCoords, {
+    color: '#eab308',
+    weight: 4,
+    dashArray: '10, 6',
+    opacity: 0.95
+  }).bindTooltip('Рубіж ізоляції (Приморське — Волноваха — Мар\'їнка — Покровськ — Золоте)').addTo(group);
+
+  L.polyline([[47.925, 38.195], [47.660, 36.258]], { color: '#dc2626', weight: 3, dashArray: '6, 4' }).addTo(group);
+  L.polyline([[47.597, 37.499], [47.251, 35.705]], { color: '#dc2626', weight: 3, dashArray: '6, 4' }).addTo(group);
+  L.polyline([[45.708, 34.393], [46.848, 35.365]], { color: '#dc2626', weight: 3, dashArray: '6, 4' }).addTo(group);
+
+  units.forEach(u => {
+    if (!appState.showPlannedLayer && u.status === 'PLANNED') return;
+    if (typeof u.lat !== 'number' || typeof u.lng !== 'number') return;
+
+    const readColor = u.readiness >= 85 ? 'GREEN' : (u.readiness >= 70 ? 'YELLOW' : 'RED');
+    const shortT = u.shortT || u.name.split(' ')[0];
+    const shortM = u.Grouping.replace('ОТУ «Запоріжжя»', 'ОТУ Зап').replace('ОСУВ «Хортиця»', 'Хортиця').replace('УВ «Південь»', 'УВ Пд').replace('УВ «Крим»', 'УВ Крим');
+
+    const svgIcon = generateNatoSymbolSVG({
+      side: u.side,
+      status: u.status,
+      symType: u.symType,
+      echelon: u.echelon,
+      fieldT: shortT,
+      fieldM: shortM,
+      fieldW: '',
+      readiness: readColor,
+      size: 76
+    });
+
+    const labelColor = u.side === 'FRIENDLY' ? '#93c5fd' : '#fca5a5';
+    const customIcon = L.divIcon({
+      className: 'nato-map-icon',
+      html: '<div style="display:flex; flex-direction:column; align-items:center;">' +
+              svgIcon +
+              '<div class="nato-marker-label" style="color:' + labelColor + ';">' + u.name + '</div>' +
+            '</div>',
+      iconSize: [96, 74],
+      iconAnchor: [48, 37]
+    });
+
+    const marker = L.marker([u.lat, u.lng], { icon: customIcon });
+    marker.on('click', function() {
+      selectMapUnit(u.id);
+    });
+    marker.addTo(group);
+  });
+}
+
+function renderSvgFallbackMap(units) {
+  const svg = document.getElementById('tacticalMapSvg');
+  const { scale, tx, ty } = appState.mapTransform;
+
+  let html =
+    '<defs>' +
+      '<pattern id="gridPattern" width="50" height="50" patternUnits="userSpaceOnUse">' +
+        '<path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(212, 175, 55, 0.08)" stroke-width="1"/>' +
+      '</pattern>' +
+      '<marker id="arrowHostile" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+        '<path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444"/>' +
+      '</marker>' +
+    '</defs>' +
+    '<g id="mapViewport" transform="translate(' + tx + ', ' + ty + ') scale(' + scale + ')">' +
+      '<rect x="0" y="0" width="1000" height="620" fill="url(#gridPattern)"/>' +
+      '<path d="M 380,490 L 470,465 L 580,435 L 700,400 L 820,375 L 870,395 L 800,510 L 650,555 L 430,545 Z" fill="rgba(14, 116, 144, 0.28)" stroke="#0891b2" stroke-width="1.5"/>' +
+      '<text x="615" y="490" fill="#38bdf8" font-size="13" font-style="italic" opacity="0.75">АЗОВСЬКЕ МОРЕ (УгрРЗС ВМС «Азов»)</text>' +
+      '<path d="M 220,530 L 380,520 L 430,565 L 450,615 L 200,615 Z" fill="rgba(30, 41, 59, 0.7)" stroke="#475569" stroke-width="1.5"/>' +
+      '<path d="M 260,40 L 325,135 L 345,235 L 335,310 L 265,385 L 175,455 L 120,485" fill="none" stroke="#0284c7" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>' +
+      '<text x="275" y="125" fill="#38bdf8" font-size="11" font-style="italic">р. Дніпро</text>' +
+      '<polyline points="355,305 450,315 545,305 635,280 655,220 635,175 675,135 715,110" fill="none" stroke="#facc15" stroke-width="3" stroke-dasharray="10,5"/>' +
+      '<text x="515" y="295" fill="#fde047" font-size="10.5" font-weight="bold">Рубіж ізоляції (Приморське—Волноваха—Мар\'їнка—Покровськ)</text>' +
+      '<path d="M 730,250 Q 610,260 520,275" fill="none" stroke="#ef4444" stroke-width="2.5" marker-end="url(#arrowHostile)" opacity="0.8"/>' +
+      '<path d="M 645,335 Q 545,345 455,345" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-dasharray="5,3" marker-end="url(#arrowHostile)" opacity="0.8"/>';
+
+  units.forEach(u => {
+    if (!appState.showPlannedLayer && u.status === 'PLANNED') return;
+    const isSelected = appState.selectedUnitId === u.id;
+    const readColor = u.readiness >= 85 ? 'GREEN' : (u.readiness >= 70 ? 'YELLOW' : 'RED');
+    const shortT = u.shortT || u.name.split(' ')[0];
+    const symbolSvg = generateNatoSymbolSVG({
+      side: u.side,
+      status: u.status,
+      symType: u.symType,
+      echelon: u.echelon,
+      fieldT: shortT,
+      fieldM: '',
+      fieldW: '',
+      readiness: readColor,
+      size: 72
+    });
+
+    html +=
+      '<g class="map-unit-node" transform="translate(' + (u.x - 36) + ', ' + (u.y - 27) + ')" style="cursor:pointer;" onclick="selectMapUnit(\'' + u.id + '\', event)">' +
+        (isSelected ? '<circle cx="36" cy="27" r="34" fill="none" stroke="#d4af37" stroke-width="2.5" stroke-dasharray="4,2"/>' : '') +
+        symbolSvg +
+        '<text x="36" y="62" text-anchor="middle" fill="' + (u.side === 'FRIENDLY' ? '#93c5fd' : '#fca5a5') + '" font-size="9.5" font-weight="bold" style="paint-order: stroke; stroke: #090d16; stroke-width: 3px;">' + u.name + '</text>' +
+      '</g>';
+  });
+
+  html += '</g>';
+  svg.innerHTML = html;
+}
+
+function selectMapUnit(unitId, evt) {
+  if (evt) evt.stopPropagation();
+  appState.selectedUnitId = unitId;
+  const u = appState.mapUnits.find(x => x.id === unitId);
+  if (!u) return;
+
+  if (appState.mapMode === 'OSM' && appState.leafletMap && typeof u.lat === 'number') {
+    appState.leafletMap.panTo([u.lat, u.lng]);
+  }
+
+  const inspector = document.getElementById('mapInspector');
+  document.getElementById('inspTitle').textContent = u.name;
+  document.getElementById('inspSvgPreview').innerHTML = generateNatoSymbolSVG({
+    side: u.side,
+    status: u.status,
+    symType: u.symType,
+    echelon: u.echelon,
+    fieldT: u.shortT || u.name.split(' ')[0],
+    fieldM: u.Grouping,
+    fieldW: '09.00 15.09',
+    readiness: u.readiness >= 85 ? 'GREEN' : (u.readiness >= 70 ? 'YELLOW' : 'RED'),
+    showOctagonGrid: true,
+    size: 155
+  });
+
+  document.getElementById('inspBody').innerHTML =
+    '<div><strong>Сторона:</strong> ' + (u.side === 'FRIENDLY' ? 'Свої війська (ЗС України)' : 'Противник («Східні»)') + '</div>' +
+    '<div><strong>Вище формування (Поділ M):</strong> ' + u.Grouping + '</div>' +
+    '<div><strong>ОКП / Дислокація:</strong> ' + u.hq + ' (' + u.lat.toFixed(3) + ', ' + u.lng.toFixed(3) + ')</div>' +
+    '<div><strong>Чисельність О/С:</strong> ' + u.personnel.toLocaleString('uk-UA') + ' осіб</div>' +
+    '<div><strong>ОВТ:</strong> Танки: ' + u.tanks + ' | ББМ: ' + u.bbm + ' | Арт./ПУ: ' + u.art + '</div>' +
+    '<div><strong>Боєздатність (Поділ AL):</strong> ' + u.readiness + '% (' + (u.status === 'PRESENT' ? 'Наявне положення' : 'Заплановане') + ')</div>' +
+    '<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--uaf-olive-border); color:var(--uaf-steppe-sand);">' + u.notes + '</div>';
+  inspector.style.display = 'block';
+}
+
+function closeMapInspector() {
+  appState.selectedUnitId = null;
+  document.getElementById('mapInspector').style.display = 'none';
+}
+
+function setupSvgMapInteractions() {
+  const svg = document.getElementById('tacticalMapSvg');
+  let isDragging = false;
+  let startX = 0, startY = 0;
+
+  svg.addEventListener('mousedown', e => {
+    isDragging = true;
+    startX = e.clientX - appState.mapTransform.tx;
+    startY = e.clientY - appState.mapTransform.ty;
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    appState.mapTransform.tx = e.clientX - startX;
+    appState.mapTransform.ty = e.clientY - startY;
+    const vp = document.getElementById('mapViewport');
+    if (vp) vp.setAttribute('transform', 'translate(' + appState.mapTransform.tx + ', ' + appState.mapTransform.ty + ') scale(' + appState.mapTransform.scale + ')');
+  });
+
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    appState.mapTransform.scale = Math.max(0.65, Math.min(3.2, appState.mapTransform.scale * factor));
+    renderSvgFallbackMap(getFilteredMapUnits());
+  }, { passive: false });
+}
+
+function toggleLayer(layer) {
+  if (layer === 'planned') {
+    appState.showPlannedLayer = !appState.showPlannedLayer;
+    document.getElementById('btnTogglePlanned').classList.toggle('btn-primary', !appState.showPlannedLayer);
+    renderTacticalMap(getFilteredMapUnits());
+  }
+}
+
+/* ============================================================================
+   6. ТАБЛИЦЯ КАРТИ ТА ОГЛЯДОВИЙ ГРАФІК СПІВВІДНОШЕННЯ
+   ============================================================================ */
+function renderMapUnitsTable(units) {
+  const { key, asc } = appState.mapSort;
+  const sorted = [...units].sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (typeof va === 'number') return asc ? va - vb : vb - va;
+    return asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+
+  const tbody = document.getElementById('mapUnitsTbody');
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:18px; color:var(--uaf-khaki-muted);">Немає підрозділів за обраними фільтрами. Натисніть «✕ Скинути фільтри».</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(u => {
+    const rColor = u.readiness >= 85 ? '#22c55e' : (u.readiness >= 70 ? '#eab308' : '#dc2626');
+    return '<tr onclick="selectMapUnit(\'' + u.id + '\')" style="cursor:pointer;">' +
+      '<td><strong>' + u.name + '</strong></td>' +
+      '<td><span class="badge-side ' + (u.side === 'FRIENDLY' ? 'side-friendly' : 'side-hostile') + '">' + (u.side === 'FRIENDLY' ? 'Свої' : 'Противник') + '</span></td>' +
+      '<td>' + u.Grouping + '</td>' +
+      '<td>' + u.hq + '</td>' +
+      '<td class="num-col">' + u.personnel.toLocaleString('uk-UA') + '</td>' +
+      '<td class="num-col"><div>' + u.readiness + '%</div><div class="readiness-bar"><div class="readiness-fill" style="width:' + u.readiness + '%; background:' + rColor + ';"></div></div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+function sortMapUnits(key) {
+  if (appState.mapSort.key === key) appState.mapSort.asc = !appState.mapSort.asc;
+  else { appState.mapSort.key = key; appState.mapSort.asc = false; }
+  renderMapUnitsTable(getFilteredMapUnits());
+}
+
+function renderOverviewForceChart(units) {
+  const f = units.filter(u => u.side === 'FRIENDLY');
+  const h = units.filter(u => u.side === 'HOSTILE');
+
+  const metrics = [
+    { label: 'Особовий склад (осіб)', fv: f.reduce((s, x) => s + x.personnel, 0), hv: h.reduce((s, x) => s + x.personnel, 0) },
+    { label: 'Танки (од.)', fv: f.reduce((s, x) => s + x.tanks, 0), hv: h.reduce((s, x) => s + x.tanks, 0) },
+    { label: 'Бойові броньовані машини (од.)', fv: f.reduce((s, x) => s + x.bbm, 0), hv: h.reduce((s, x) => s + x.bbm, 0) },
+    { label: 'Артилерія, РСЗВ та ОТРК (од.)', fv: f.reduce((s, x) => s + x.art, 0), hv: h.reduce((s, x) => s + x.art, 0) }
+  ];
+
+  const box = document.getElementById('overviewForceRatioChart');
+  box.innerHTML = metrics.map(m => {
+    const total = m.fv + m.hv || 1;
+    const fPct = Math.round((m.fv / total) * 100);
+    const hPct = 100 - fPct;
+    const ratio = m.fv > 0 ? (m.hv / m.fv).toFixed(2) : '—';
+    return '<div class="bar-row">' +
+      '<div class="bar-label-line">' +
+        '<span><strong>' + m.label + '</strong></span>' +
+        '<span><strong style="color:#93c5fd">' + m.fv.toLocaleString('uk-UA') + '</strong> vs <strong style="color:#fca5a5">' + m.hv.toLocaleString('uk-UA') + '</strong> (1 : ' + ratio + ')</span>' +
+      '</div>' +
+      '<div class="dual-bar-track">' +
+        '<div class="dual-bar-friendly" style="width:' + fPct + '%" title="Свої: ' + fPct + '%"></div>' +
+        '<div class="dual-bar-hostile" style="width:' + hPct + '%" title="Противник: ' + hPct + '%"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/* ============================================================================
+   7. ВКЛАДКА 2: СПІВВІДНОШЕННЯ СИЛ, ВТРАТИ ТА СИМУЛЯТОР
+   ============================================================================ */
+function renderHostileStrategicTable() {
+  const tbody = document.getElementById('hostileGroupingsTbody');
+  const totals = HOSTILE_STRATEGIC_GROUPINGS.reduce((acc, g) => {
+    acc.personnel += g.personnel;
+    acc.tanks += g.tanks;
+    acc.bbm += g.bbm;
+    acc.artillery += g.artillery;
+    acc.mlrs += g.mlrs;
+    acc.otrk += g.otrk;
+    acc.airdef += g.airdef;
+    acc.aircraft += g.aircraft;
+    acc.helicopters += g.helicopters;
+    return acc;
+  }, { personnel: 0, tanks: 0, bbm: 0, artillery: 0, mlrs: 0, otrk: 0, airdef: 0, aircraft: 0, helicopters: 0 });
+
+  tbody.innerHTML = HOSTILE_STRATEGIC_GROUPINGS.map(g =>
+    '<tr>' +
+      '<td><strong>' + g.name + '</strong></td>' +
+      '<td>' + g.composition + '</td>' +
+      '<td class="num-col">' + (g.personnel / 1000).toFixed(1) + '</td>' +
+      '<td class="num-col">' + g.tanks + '</td>' +
+      '<td class="num-col">' + g.bbm + '</td>' +
+      '<td class="num-col">' + g.artillery + '</td>' +
+      '<td class="num-col">' + g.mlrs + '</td>' +
+      '<td class="num-col">' + g.otrk + '</td>' +
+      '<td class="num-col">' + g.airdef + '</td>' +
+      '<td class="num-col">' + g.aircraft + '</td>' +
+      '<td class="num-col">' + g.helicopters + '</td>' +
+    '</tr>'
+  ).join('') +
+    '<tr style="background:#161a11; font-weight:800; color:var(--uaf-gold);">' +
+      '<td>ВСЬОГО ЗС «Східних» на ТВД</td>' +
+      '<td>Усі стратегічні напрямки</td>' +
+      '<td class="num-col">' + (totals.personnel / 1000).toFixed(1) + '</td>' +
+      '<td class="num-col">' + totals.tanks + '</td>' +
+      '<td class="num-col">' + totals.bbm + '</td>' +
+      '<td class="num-col">' + totals.artillery + '</td>' +
+      '<td class="num-col">' + totals.mlrs + '</td>' +
+      '<td class="num-col">' + totals.otrk + '</td>' +
+      '<td class="num-col">' + totals.airdef + '</td>' +
+      '<td class="num-col">' + totals.aircraft + '</td>' +
+      '<td class="num-col">' + totals.helicopters + '</td>' +
+    '</tr>';
+}
+
+function renderLossesSection() {
+  const items = [
+    { name: '8 загальновійськова армія «Східних» (КП Іловайськ)', lossPct: 28, detail: 'Загальні втрати в Донецькому операційному районі: 25–30%', color: '#dc2626' },
+    { name: '150 мсд (зі складу 8 А «Східних»)', lossPct: 43, detail: 'Найбільші втрати під час спроб прориву оборони: 40–45%', color: '#b91c1c' },
+    { name: '1, 9, 114, 132 омсбр (зі складу 51 А «Східних», КП Донецьк)', lossPct: 42, detail: 'Втрати першого ешелону 51 А склали 40–45%, решта частин — 25–30%', color: '#b91c1c' },
+    { name: 'ОТУ «Донецьк» та 11 АК (ОСУВ «Хортиця» — стабілізаційна операція)', lossPct: 22.5, detail: 'Загальні втрати 20–25%, окремі бригади першого ешелону до 40%', color: '#eab308' },
+    { name: 'ОТУ «Запоріжжя» (9 АК, 10 АК, 30 КМП ВМС — розгорнуте угруповання)', lossPct: 6, detail: 'Укомплектованість основними видами ОВТ та о/с складає 90–96%', color: '#22c55e' }
+  ];
+
+  document.getElementById('lossesBreakdownContainer').innerHTML = items.map(it =>
+    '<div style="margin-bottom:12px;">' +
+      '<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">' +
+        '<strong>' + it.name + '</strong>' +
+        '<span style="color:' + it.color + '; font-weight:700;">Втрати: ~' + it.lossPct + '% (Збережено боєздатність: ' + (100 - it.lossPct) + '%)</span>' +
+      '</div>' +
+      '<div class="readiness-bar" style="height:10px;">' +
+        '<div class="readiness-fill" style="width:' + it.lossPct + '%; background:' + it.color + ';"></div>' +
+      '</div>' +
+      '<div style="font-size:11px; color:var(--uaf-khaki-muted); margin-top:2px;">' + it.detail + '</div>' +
+    '</div>'
+  ).join('');
+}
+
+function runForceSimulation() {
+  const fPct = Number(document.getElementById('simFriendlyPct').value) / 100;
+  const hPct = Number(document.getElementById('simHostilePct').value) / 100;
+  const mode = document.getElementById('simHostileReserve').value;
+
+  document.getElementById('lblSimFriendlyPct').textContent = Math.round(fPct * 100) + '%';
+  document.getElementById('lblSimHostilePct').textContent = Math.round(hPct * 100) + '%';
+
+  const baseFriendly = { pers: 82500, tanks: 465, bbm: 1650, art: 680 };
+  let baseHostile = { pers: 88500, tanks: 650, bbm: 2470, art: 1220 };
+
+  if (mode === 'full_south') {
+    baseHostile = { pers: 234500, tanks: 1790, bbm: 6850, art: 3995 };
+  } else if (mode === 'with_crimea') {
+    baseHostile = { pers: 256000, tanks: 1885, bbm: 7310, art: 4210 };
+  }
+
+  const effF = {
+    pers: Math.round(baseFriendly.pers * fPct),
+    tanks: Math.round(baseFriendly.tanks * fPct),
+    bbm: Math.round(baseFriendly.bbm * fPct),
+    art: Math.round(baseFriendly.art * fPct)
+  };
+  const effH = {
+    pers: Math.round(baseHostile.pers * hPct),
+    tanks: Math.round(baseHostile.tanks * hPct),
+    bbm: Math.round(baseHostile.bbm * hPct),
+    art: Math.round(baseHostile.art * hPct)
+  };
+
+  const rPers = (effH.pers / effF.pers).toFixed(2);
+  const rTanks = (effH.tanks / effF.tanks).toFixed(2);
+  const rBbm = (effH.bbm / effF.bbm).toFixed(2);
+  const rArt = (effH.art / effF.art).toFixed(2);
+
+  document.getElementById('simResultsOutput').innerHTML =
+    '<div class="table-wrap"><table class="data-table"><thead><tr>' +
+      '<th>Категорія сил і засобів</th>' +
+      '<th class="num-col">ОТУ «Запоріжжя» (9 АК, 10 АК, 30 КМП)</th>' +
+      '<th class="num-col">Противник у смузі (розрахунково)</th>' +
+      '<th class="num-col">Співвідношення (Свої : Противник)</th>' +
+      '<th>Оперативний висновок</th>' +
+    '</tr></thead><tbody>' +
+      '<tr><td><strong>Особовий склад (осіб)</strong></td><td class="num-col">' + effF.pers.toLocaleString('uk-UA') + '</td><td class="num-col">' + effH.pers.toLocaleString('uk-UA') + '</td><td class="num-col"><strong>1 : ' + rPers + '</strong></td><td>' + (rPers <= 1.5 ? 'Дозволяє стійко утримувати займані рубежі 9 АК і 10 АК та готувати контрудар' : 'Потребує маневру резервами ОТУ та вогневого ураження других ешелонів') + '</td></tr>' +
+      '<tr><td><strong>Танки (од.)</strong></td><td class="num-col">' + effF.tanks + '</td><td class="num-col">' + effH.tanks + '</td><td class="num-col"><strong>1 : ' + rTanks + '</strong></td><td>Залучення 5 овмбр (M1 Abrams) та оптб компенсує чисельну перевагу</td></tr>' +
+      '<tr><td><strong>ББМ (БМП, БТР, БРМ)</strong></td><td class="num-col">' + effF.bbm + '</td><td class="num-col">' + effH.bbm + '</td><td class="num-col"><strong>1 : ' + rBbm + '</strong></td><td>Щільність ПТЗ та ударних БпАК забезпечує стійкість оборони</td></tr>' +
+      '<tr><td><strong>Артилерія та РСЗВ (од.)</strong></td><td class="num-col">' + effF.art + '</td><td class="num-col">' + effH.art + '</td><td class="num-col"><strong>1 : ' + rArt + '</strong></td><td>Перевага ЗСУ в точності та дальності 155-мм САУ (Archer, Caesar, PzH-2000, Богдана)</td></tr>' +
+    '</tbody></table></div>';
+}
+
+/* ============================================================================
+   8. ВКЛАДКА 3: РВіА ТА ВОГНЕВЕ УРАЖЕННЯ
+   ============================================================================ */
+function renderArtilleryTab() {
+  const systems = [
+    { name: 'ОТРК «Грім-2» / M142 HIMARS (ATACMS) — 19 орбр', rangeKm: 300, count: '12 ПУ', color: '#d4af37' },
+    { name: 'РСЗВ «Вільха-М» (300-мм коригована) — 107 ореабр', rangeKm: 130, count: '6 ПУ', color: '#3b82f6' },
+    { name: 'РСЗВ M270 MLRS (GMLRS) — 107 ореабр', rangeKm: 84, count: '18 ПУ', color: '#3b82f6' },
+    { name: 'РСЗВ БМ-27 «Буревій» (220-мм) — 27 ореабр', rangeKm: 65, count: '36 БМ', color: '#0ea5e9' },
+    { name: '155-мм САУ Archer / PzH-2000 / RCH 155 (активно-реакт.) — 43 оабр, оабр ОК', rangeKm: 54, count: '54 САУ', color: '#22c55e' },
+    { name: '203-мм САУ 2С7 «Піон» — 43 оабр', rangeKm: 47, count: '12 САУ', color: '#22c55e' },
+    { name: '155-мм САУ Caesar / Krab / Zuzana-2 / 2П22 «Богдана» — оабр 9 АК та 10 АК', rangeKm: 42, count: '90 САУ', color: '#16a34a' },
+    { name: 'ОТРК «Іскандер-М» противника (УВ «Південь»)', rangeKm: 500, count: '84 ПУ', color: '#dc2626' }
+  ];
+
+  document.getElementById('artilleryRangeChart').innerHTML = systems.map(s => {
+    const pct = Math.min(100, Math.round((s.rangeKm / 300) * 100));
+    return '<div style="margin-bottom:10px;">' +
+      '<div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:3px;">' +
+        '<span><strong>' + s.name + '</strong></span>' +
+        '<span>Штат: <strong>' + s.count + '</strong> | Дальність: <strong style="color:var(--uaf-gold)">' + s.rangeKm + ' км</strong></span>' +
+      '</div>' +
+      '<div class="readiness-bar" style="height:12px;"><div class="readiness-fill" style="width:' + pct + '%; background:' + s.color + ';"></div></div>' +
+    '</div>';
+  }).join('');
+
+  document.getElementById('artilleryReconSummary').innerHTML =
+    '<div class="kpi-grid" style="grid-template-columns:1fr 1fr; margin-bottom:10px;">' +
+      '<div class="kpi-card"><div class="kpi-header">РЛС контрбатарейної боротьби (15 обрар)</div><div class="kpi-val">6 од. РЛС</div><div class="kpi-sub">2 Зоопарк-3, 2 AN/TPQ-53, 2 Cobra</div></div>' +
+      '<div class="kpi-card crimson"><div class="kpi-header">БпАК арт. розвідки (15 обрар + оабр)</div><div class="kpi-val">26 БпАК</div><div class="kpi-sub">6 Poseidon, 1 Сокіл-300, 19 Лелека-100</div></div>' +
+    '</div>' +
+    '<p style="font-size:12px; color:var(--uaf-steppe-sand); line-height:1.5;">' +
+      '<strong>Оперативно-тактичний висновок:</strong> Поєднання засобів 15 обрар (РЛС «Зоопарк-3», «AN/TPQ-53», «Cobra» та БпАК «Сокіл-300» / «Poseidon») із високоточними дивізіонами 43 оабр (Archer, Caesar, 2С7) та 19 орбр (HIMARS / «Грім-2») забезпечує замкнутий контур розвідка—ураження (Sensor-to-Shooter) у смузі ОТУ «Запоріжжя» на глибину до 70–300 км.' +
+    '</p>';
+
+  const rviaToe = TOE_CATALOG.filter(t => t.category === 'РВіА');
+  document.getElementById('artilleryUnitsTbody').innerHTML = rviaToe.map(t =>
+    '<tr>' +
+      '<td>Штат № ' + t.appNum + '</td>' +
+      '<td><strong>' + t.code + '</strong></td>' +
+      '<td>КРВіА / ОТУ / 9 АК, 10 АК</td>' +
+      '<td class="num-col">' + t.personnel.toLocaleString('uk-UA') + '</td>' +
+      '<td><strong>' + t.art + ' од.</strong></td>' +
+      '<td>' + t.weapons + '</td>' +
+    '</tr>'
+  ).join('');
+}
+
+/* ============================================================================
+   9. ВКЛАДКА 4: ППО, АВІАЦІЯ ТА БпС
+   ============================================================================ */
+function renderAirTab() {
+  const adSystems = [
+    { name: 'ЗРК «IRIS-T» (зрбр КСВ)', count: 12, role: 'Середня дальність (до 40 км), 12 ПУ у 4 зрбат + 4 РЛС TRML-4D', color: '#2563eb' },
+    { name: 'ЗРК «HISAR-O» (зрп ОТУ / ОК)', count: 12, role: 'Середня дальність (до 25 км), прикриття основних угруповань ОТУ «Запоріжжя»', color: '#0ea5e9' },
+    { name: 'ЗРК «HISAR-A» (зрп 9 АК та 10 АК)', count: 20, role: 'Мала дальність (до 15 км), прикриття бригад першого ешелону 9 АК і 10 АК', color: '#22c55e' },
+    { name: 'ЗСУ 35-мм «Skyranger 35» (зрбр) + «Gepard» (зенап) + «Korkut» (зрп)', count: 66, role: '12 Skyranger + 18 Gepard + 36 Korkut (проти крилатих ракет та ударних БпЛА)', color: '#d4af37' },
+    { name: 'Комплекси БпАК-перехоплювачів у зрп ОК та АК', count: 60, role: 'По 30 комплексів у кожному зрп для перехоплення розвідувальних та ударних БпЛА', color: '#8c1d40' }
+  ];
+
+  document.getElementById('airDefenseChart').innerHTML = adSystems.map(a =>
+    '<div style="margin-bottom:11px;">' +
+      '<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">' +
+        '<strong>' + a.name + '</strong>' +
+        '<span style="color:' + a.color + '; font-weight:700;">' + a.count + ' од. за штатом</span>' +
+      '</div>' +
+      '<div class="readiness-bar" style="height:10px;"><div class="readiness-fill" style="width:' + Math.min(100, a.count * 1.4) + '%; background:' + a.color + ';"></div></div>' +
+      '<div style="font-size:11px; color:var(--uaf-khaki-muted); margin-top:2px;">' + a.role + '</div>' +
+    '</div>'
+  ).join('');
+
+  document.getElementById('uavDistributionChart').innerHTML =
+    '<div class="kpi-grid" style="grid-template-columns:1fr 1fr; margin-bottom:10px;">' +
+      '<div class="kpi-card"><div class="kpi-header">Окремий полк БпС ОТУ</div><div class="kpi-val">214 БпАК + 49 НРК</div><div class="kpi-sub">О/С: 1 479 осіб | 18 розвід. + 196 ударних</div></div>' +
+      '<div class="kpi-card neutral"><div class="kpi-header">Окремий батальйон БпС 9 АК / 10 АК</div><div class="kpi-val">81 БпАК + 16 НРК</div><div class="kpi-sub">О/С: 472 особи | 9 розвід. + 72 ударних</div></div>' +
+    '</div>' +
+    '<table class="data-table"><thead><tr><th>Тип безпілотної системи</th><th>Основні зразки за штатом</th><th class="num-col">У полку БпС</th><th class="num-col">У батальйоні БпС</th></tr></thead><tbody>' +
+      '<tr><td>Розвідувальні БпАК</td><td>Shark, Сич, Лелека-100, Mavic 3</td><td class="num-col">18 компл.</td><td class="num-col">9 компл.</td></tr>' +
+      '<tr><td>Ударні БпАК (баражуючі / бомбери)</td><td>Ram II, Darts, Punisher, Кажан, Heavy Shot, FPV</td><td class="num-col">196 компл.</td><td class="num-col">72 компл.</td></tr>' +
+      '<tr><td>Наземні роботизовані комплекси (НРК)</td><td>Терміт, Тарган, Мороз, Воля-Е</td><td class="num-col">49 компл.</td><td class="num-col">16 компл.</td></tr>' +
+    '</tbody></table>';
+
+  const airToe = TOE_CATALOG.filter(t => t.category === 'ППО та РТВ' || t.category === 'Авіація та БпС');
+  document.getElementById('airUnitsTbody').innerHTML = airToe.map(t =>
+    '<tr>' +
+      '<td>Штат № ' + t.appNum + '</td>' +
+      '<td><strong>' + t.code + '</strong></td>' +
+      '<td class="num-col">' + t.personnel.toLocaleString('uk-UA') + '</td>' +
+      '<td>' + (t.airdef > 0 ? t.airdef + ' од. ППО' : 'Авіаційні / спец. засоби') + '</td>' +
+      '<td>' + t.weapons + '</td>' +
+      '<td>' + t.category + '</td>' +
+    '</tr>'
+  ).join('');
+}
+
+/* ============================================================================
+   10. ВКЛАДКА 5: ДОВІДНИК ШТАТНИХ НОРМАТИВІВ ОШС (34 ТИПОВИХ ШТАТИ)
+   ============================================================================ */
+function renderToeTable() {
+  const q = document.getElementById('toeSearchInput').value.trim().toLowerCase();
+  const cat = document.getElementById('toeCategorySelect').value;
+  const { key, asc } = appState.toeSort;
+
+  const filtered = TOE_CATALOG.filter(t => {
+    if (cat !== 'ALL' && t.category !== cat) return false;
+    if (q) {
+      const hay = (t.appNum + ' ' + t.code + ' ' + t.category + ' ' + t.weapons).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (typeof va === 'number') return asc ? va - vb : vb - va;
+    return asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+
+  document.getElementById('toeTableBody').innerHTML = filtered.map(t =>
+    '<tr>' +
+      '<td><strong>Штат № ' + t.appNum + '</strong></td>' +
+      '<td><strong style="color:var(--uaf-gold)">' + t.code + '</strong></td>' +
+      '<td>' + t.category + '</td>' +
+      '<td class="num-col">' + t.personnel.toLocaleString('uk-UA') + '</td>' +
+      '<td class="num-col">' + t.tanks + '</td>' +
+      '<td class="num-col">' + t.bbm + '</td>' +
+      '<td class="num-col">' + t.art + '</td>' +
+      '<td class="num-col">' + t.airdef + '</td>' +
+      '<td>' + t.weapons + '</td>' +
+      '<td><button class="btn" style="padding:3px 8px;" onclick="showToeDetail(' + t.appNum + ')">Деталі</button></td>' +
+    '</tr>'
+  ).join('');
+}
+
+function sortToe(key) {
+  if (appState.toeSort.key === key) appState.toeSort.asc = !appState.toeSort.asc;
+  else { appState.toeSort.key = key; appState.toeSort.asc = true; }
+  renderToeTable();
+}
+
+function showToeDetail(appNum) {
+  const t = TOE_CATALOG.find(x => x.appNum === appNum);
+  if (!t) return;
+  document.getElementById('modalTitle').textContent = 'Штатний норматив № ' + t.appNum + ': ' + t.code;
+  document.getElementById('modalBody').innerHTML =
+    '<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">' +
+      '<div class="kpi-card"><div class="kpi-header">Особовий склад</div><div class="kpi-val">' + t.personnel.toLocaleString('uk-UA') + '</div></div>' +
+      '<div class="kpi-card"><div class="kpi-header">Танки</div><div class="kpi-val">' + t.tanks + ' од.</div></div>' +
+      '<div class="kpi-card"><div class="kpi-header">ББМ</div><div class="kpi-val">' + t.bbm + ' од.</div></div>' +
+      '<div class="kpi-card"><div class="kpi-header">Арт. / ППО</div><div class="kpi-val">' + t.art + ' / ' + t.airdef + '</div></div>' +
+    '</div>' +
+    '<p style="font-size:13px; line-height:1.6;"><strong>Основне озброєння та військова техніка за штатом:</strong><br>' + t.weapons + '</p>';
+  document.getElementById('detailModal').style.display = 'flex';
+}
+
+function exportToeCSV() {
+  const headers = ['Код_ОШС', 'Найменування', 'Категорія', 'Особовий_склад', 'Танки', 'ББМ', 'Артилерія', 'ППО', 'Озброєння'];
+  const rows = TOE_CATALOG.map(t => [
+    'Штат № ' + t.appNum,
+    '"' + t.code + '"',
+    '"' + t.category + '"',
+    t.personnel,
+    t.tanks,
+    t.bbm,
+    t.art,
+    t.airdef,
+    '"' + t.weapons.replace(/"/g, '""') + '"'
+  ]);
+  const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+  downloadFileBlob(csvContent, 'Tavria_OSH_Catalog.csv', 'text/csv;charset=utf-8;');
+}
+
+/* ============================================================================
+   11. ВКЛАДКА 6: ЖУРНАЛ БОЙОВИХ ДІЙ ТА ВВЕДЕННЯ ДАНИХ
+   ============================================================================ */
+function renderJournalTable() {
+  const tbody = document.getElementById('journalTableBody');
+  tbody.innerHTML = appState.journal.map(j =>
+    '<tr>' +
+      '<td style="white-space:nowrap; font-family:monospace; color:var(--uaf-gold);"><strong>' + j.time + '</strong></td>' +
+      '<td><strong>' + j.sector + '</strong></td>' +
+      '<td><span class="badge-side ' + (j.side === 'FRIENDLY' ? 'side-friendly' : 'side-hostile') + '">' + (j.side === 'FRIENDLY' ? 'Свої (ЗС України)' : 'Противник («Східні»)') + '</span></td>' +
+      '<td>' + j.text + '</td>' +
+      '<td><span class="filter-tag">' + j.impact + '</span></td>' +
+    '</tr>'
+  ).join('');
+}
+
+function addJournalEntry(e) {
+  e.preventDefault();
+  const entry = {
+    time: document.getElementById('jTime').value.trim(),
+    sector: document.getElementById('jSector').value,
+    side: document.getElementById('jSide').value,
+    impact: document.getElementById('jImpact').value,
+    text: document.getElementById('jText').value.trim()
+  };
+  appState.journal.unshift(entry);
+  saveStateToStorage();
+  renderJournalTable();
+  document.getElementById('jText').value = '';
+}
+
+function addNewMapUnit(e) {
+  e.preventDefault();
+  const side = document.getElementById('uSide').value;
+  const branch = document.getElementById('uBranch').value;
+  let symType = 'MECH';
+  if (branch === 'РВіА') symType = 'ARTY';
+  else if (branch === 'ППО / ПС') symType = 'AIRDEF';
+  else if (branch === 'КП / Управління') symType = 'HQ';
+  else if (branch === 'БпС / Розвідка / РЕР') symType = 'UAV';
+
+  const uNameVal = document.getElementById('uName').value.trim();
+  const newUnit = {
+    id: 'u_custom_' + Date.now(),
+    name: uNameVal,
+    shortT: uNameVal.slice(0, 8),
+    side: side,
+    Grouping: document.getElementById('uGrouping').value,
+    branch: branch,
+    symType: symType,
+    echelon: document.getElementById('uEchelon').value,
+    status: 'PRESENT',
+    hq: document.getElementById('uHq').value.trim(),
+    lat: Number(document.getElementById('uLat').value),
+    lng: Number(document.getElementById('uLng').value),
+    x: side === 'FRIENDLY' ? 410 + Math.round(Math.random() * 60) : 640 + Math.round(Math.random() * 80),
+    y: 250 + Math.round(Math.random() * 140),
+    personnel: Number(document.getElementById('uPers').value),
+    tanks: symType === 'MECH' ? 31 : 0,
+    bbm: symType === 'MECH' ? 109 : 10,
+    art: symType === 'ARTY' ? 54 : 18,
+    readiness: Number(document.getElementById('uReadiness').value),
+    notes: 'Внесено оперативним черговим до бази даних обстановки (ВКДП 5(3)-00(01).02)'
+  };
+
+  appState.mapUnits.push(newUnit);
+  saveStateToStorage();
+  resetGlobalFilters();
+  switchTab('tab-overview', document.querySelectorAll('.nav-tab')[0]);
+  selectMapUnit(newUnit.id);
+}
+
+/* ============================================================================
+   12. ВКЛАДКА 7: ГЕНЕРАТОР БОЙОВИХ ДОКУМЕНТІВ ТА СИМВОЛІКИ ВКДП 5(3)-00(01).02
+   ============================================================================ */
+function renderMilitaryDocument() {
+  const type = document.getElementById('docTypeSelect').value;
+  const container = document.getElementById('militaryDocContainer');
+
+  if (type === 'combat_order') {
+    container.innerHTML =
+      '<div class="doc-stamp">Цілком таємно<br>Прим. № 1<br>ОТУ «Запоріжжя»<br>ОКП — ЗАПОРІЖЖЯ<br>09.00 15.09.2026</div>' +
+      '<div class="doc-center-header">БОЙОВЕ РОЗПОРЯДЖЕННЯ КОМАНДУВАЧА ОТУ «ЗАПОРІЖЖЯ» № 01/ОР<br><span style="font-weight:normal; font-size:12pt;">Карта 1:100 000, видання 2024 р.</span></div>' +
+      '<p>1. Противник («Східні») силами 8 А (КП — ІЛОВАЙСЬК) та 51 А (КП — ДОНЕЦЬК) зі складу УВ «Південь», втративши у попередніх боях 25–30% бойового потенціалу (у 150 мсд та 1, 9, 114, 132 омсбр — до 40–45%), здійснює перегрупування та висуває резерви (49 А, 58 А) для відновлення наступу в напрямку ТОКМАК, ЗАПОРІЖЖЯ. Рубіж противника (з лівого флангу за годинниковою стрілкою згідно з п. 2.7.5 ВКДП 5(3)-00(01).02): ЗОЛОТЕ, ТОРЕЦЬК, ПОКРОВСЬК, МАР\'ЇНКА, ВОЛНОВАХА, ПРИМОРСЬКЕ.</p>' +
+      '<p>2. ОТУ «Запоріжжя» у складі 9 АК (ОКП — ГУЛЯЙПОЛЕ), 10 АК (ОКП — ТОКМАК), 30 КМП ВМС (ОКП — МЕЛІТОПОЛЬ), УгрПС «Південь», УгрРЗС ВМС «Азов» та частин посилення (19 орбр, 43 оабр, 107 ореабр, 15 обрар) переходить до ведення оборонної операції з метою відбиття наступу УВ «Південь», утримання рубежу (з правого флангу проти годинникової стрілки): ПРИМОРСЬКЕ, ТОКМАК, ПОЛОГИ, ГУЛЯЙПОЛЕ, ПОКРОВСЬКЕ та створення умов для переходу в контрнаступ.</p>' +
+      '<p>3. <strong>Командиру 9 армійського корпусу:</strong> силами підпорядкованих бригад у взаємодії з 43 оабр та 15 обрар не допустити прориву частин 8 А та 58 А противника на Оріхівсько-Гуляйпільському напрямку. Вогневе ураження пунктів управління та резервів противника забезпечити у взаємодії з 19 орбр (ОТРК «Грім-2», M142 HIMARS).</p>' +
+      '<p>4. <strong>Командиру 10 армійського корпусу та командиру 30 корпусу морської піхоти ВМС:</strong> міцно утримувати Токмацький та Мелітопольський оборонні райони, прикрити фланг з боку УВ «Крим» (18 А противника, ДЖАНКОЙ), утримувати у готовності 5 важку механізовану бригаду (M1 Abrams / Marder) для проведення контрудару.</p>' +
+      '<p>5. Час готовності системи вогню та інженерних загороджень — <strong>14.00 15.09.2026</strong>. Донесення подавати щоденно до 08.00 та 20.00 через ІС «АСУ Дніпро».</p>' +
+      '<div class="doc-sig"><div>Командувач ОТУ «Запоріжжя»<br>генерал-лейтенант &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ім\'я ПРІЗВИЩЕ</div><div>Начальник штабу — перший заступник командувача<br>бригадний генерал &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ім\'я ПРІЗВИЩЕ</div></div>';
+  } else if (type === 'op_directive') {
+    container.innerHTML =
+      '<div class="doc-stamp">Цілком таємно<br>Прим. № 1<br>ОСУВ «Хортиця»<br>09.00 15.09.2026</div>' +
+      '<div class="doc-center-header">ОПЕРАТИВНА ДИРЕКТИВА КОМАНДУВАЧА ОСУВ «ХОРТИЦЯ» № 02/ОД<br><span style="font-weight:normal; font-size:12pt;">Карта 1:200 000</span></div>' +
+      '<p>1. Збройні сили «Східних» та «Північних» завершили оперативне розгортання стратегічних угруповань загальною чисельністю до 450 тис. осіб, 4 060 танків, 14 460 ББМ, 6 630 гармат і мінометів, 192 ПУ ОТРК. У смузі ОСУВ «Хортиця» та ОТУ «Запоріжжя» діє УВ «Південь» (234,5 тис. о/с, 1 790 танків, 6 850 ББМ, 84 ПУ ОТРК).</p>' +
+      '<p>2. ОСУВ «Хортиця» силами ОТУ «Донецьк», 11 АК та ОТУ «Запоріжжя» проводить оборонну операцію з метою зриву стратегічної наступальної операції противника, завдання максимальних втрат першому оперативному ешелону (8 А, 51 А, 49 А) та утримання ключових оперативних районів Запорізької і Донецької областей.</p>' +
+      '<p>3. <strong>ОТУ «Запоріжжя» (ОКП — ЗАПОРІЖЖЯ):</strong> силами 9 АК, 10 АК, 30 КМП ВМС, УгрПС «Південь» та УгрРЗС ВМС «Азов» в Азовській операційній зоні відбити удар противника на Запорізькому та Мелітопольському напрямках, не допустити виходу противника до р. ДНІПРО.</p>' +
+      '<div class="doc-sig"><div>Командувач ОСУВ «Хортиця»<br>генерал-полковник &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ім\'я ПРІЗВИЩЕ</div><div>Начальник штабу ОСУВ «Хортиця»<br>генерал-майор &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ім\'я ПРІЗВИЩЕ</div></div>';
+  } else {
+    container.innerHTML =
+      '<div class="doc-stamp">Таємно<br>Прим. № 1<br>Штаб ОТУ «Запоріжжя»<br>ОКП — ЗАПОРІЖЖЯ<br>09.00 15.09.2026</div>' +
+      '<div class="doc-center-header">ПІДСУМКОВЕ ОПЕРАТИВНЕ ЗВЕДЕННЯ № 15<br>станом на 09.00 15.09.2026</div>' +
+      '<p>1. <strong>Загальна оцінка обстановки:</strong> Протягом минулої доби війська ОТУ «Запоріжжя» завершили зайняття смуг оборони 9 АК (ГУЛЯЙПОЛЕ), 10 АК (ТОКМАК) та 30 КМП ВМС (МЕЛІТОПОЛЬ). Рівень укомплектованості з\'єднань становить 90–96%.</p>' +
+      '<p>2. <strong>Дії РВіА та ППО:</strong> Підрозділами 15 обрар виявлено 14 цілей в оперативній глибині противника. Черговими силами УгрПС «Південь» та зрбр КСВ (ЗРК IRIS-T, Skyranger 35) забезпечено прикриття ОКП у ЗАПОРІЖЖІ та мостових переходів через р. ДНІПРО.</p>' +
+      '<p>3. <strong>Логістичне забезпечення:</strong> Силами обМЗ ОК та обМЗ 9 АК і 10 АК доставлено 2 160 т ракет і боєприпасів та 1 950 тис. л пального. Зв\'язок з підпорядкованими корпусами стійкий (розгорнуто 154 термінали Starlink та 37 КХ радіостанцій Harris силами опз ОК).</p>' +
+      '<div class="doc-sig"><div>Начальник штабу — перший заступник командувача ОТУ «Запоріжжя»<br>бригадний генерал &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ім\'я ПРІЗВИЩЕ</div></div>';
+  }
+}
+
+function printMilitaryDocument() {
+  const content = document.getElementById('militaryDocContainer').innerHTML;
+  const win = window.open('', '_blank', 'width=900,height=700');
+  if (!win) return;
+  const docHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Друк документа ВКДП 5(3)-00(01).02<' + '/title>' +
+    '<style>' +
+      'body { font-family: "Times New Roman", serif; font-size: 14pt; line-height: 1.35; padding: 20mm 15mm 20mm 30mm; color: #000; }' +
+      '.doc-stamp { text-align: right; font-weight: bold; margin-bottom: 14px; }' +
+      '.doc-center-header { text-align: center; font-weight: bold; margin-bottom: 16px; }' +
+      'p { text-indent: 12.5mm; text-align: justify; margin-bottom: 8px; }' +
+      '.doc-sig { margin-top: 28px; display: flex; justify-content: space-between; font-weight: bold; }' +
+    '<' + '/style><' + '/head><body>' + content + '<' + '/body><' + '/html>';
+  win.document.open();
+  win.document.write(docHtml);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+function updateSymbolBuilder() {
+  const opts = {
+    side: document.getElementById('symSide').value,
+    status: document.getElementById('symStatus').value,
+    symType: document.getElementById('symBranch').value,
+    echelon: document.getElementById('symEchelon').value,
+    fieldT: document.getElementById('symFieldT').value,
+    fieldM: document.getElementById('symFieldM').value,
+    fieldW: document.getElementById('symFieldW').value,
+    readiness: document.getElementById('symReadiness').value,
+    showOctagonGrid: true,
+    size: 240
+  };
+  const svgMarkup = generateNatoSymbolSVG(opts);
+  document.getElementById('symbolBuilderOutput').innerHTML = svgMarkup;
+  document.getElementById('sidcCodeDisplay').textContent =
+    'Верифікація за ВКДП 5(3)-00(01).02 (Розд. 5): [Приналежність: ' + opts.side + '] | [Статус: ' + opts.status + '] | [Віртуальний 8-кутник: OK] | [Поділ E: ' + opts.echelon + '] | [Поділ T: ' + opts.fieldT + '] | [Поділ M: ' + opts.fieldM + '] | [Поділ AL: ' + opts.readiness + ']';
+}
+
+function downloadBuiltSymbolSVG() {
+  const svgContent = document.getElementById('symbolBuilderOutput').innerHTML.trim();
+  downloadFileBlob(svgContent, 'nato_symbol_vkdp.svg', 'image/svg+xml;charset=utf-8;');
+}
+
+/* ============================================================================
+   13. НАВІГАЦІЯ ТА ІМПОРТ/ЕКСПОРТ SNAPSHOT
+   ============================================================================ */
+function switchTab(tabId, tabEl) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
+  if (tabId === 'tab-overview' && appState.leafletMap) {
+    setTimeout(() => appState.leafletMap.invalidateSize(), 100);
+  }
+}
+
+function exportFullSnapshotJSON() {
+  const snapshot = {
+    system: 'ІАС Таврія (АСУВ Дніпро) — ОТУ Запоріжжя / ОСУВ Хортиця',
+    exportedAt: '09.00 15.09.2026',
+    mapUnits: appState.mapUnits,
+    journal: appState.journal,
+    hostileStrategicGroupings: HOSTILE_STRATEGIC_GROUPINGS,
+    toeCatalogCount: TOE_CATALOG.length
+  };
+  downloadFileBlob(JSON.stringify(snapshot, null, 2), 'tavria_dashboard_snapshot.json', 'application/json');
+}
+
+function handleImportJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (Array.isArray(data.mapUnits)) appState.mapUnits = data.mapUnits;
+      if (Array.isArray(data.journal)) appState.journal = data.journal;
+      saveStateToStorage();
+      resetGlobalFilters();
+      renderJournalTable();
+      alert('Зріз даних (Snapshot) успішно імпортовано та перевірено!');
+    } catch (err) {
+      alert('Помилка структури JSON-файла: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadFileBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+window.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>
